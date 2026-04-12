@@ -2,6 +2,8 @@
 
 A complete SSL certificate management platform with web dashboard, ACME integration, CA signing, deploy agents, and automated renewal.
 
+![CertDax Dashboard](docs/dashboard.png)
+
 ## Features
 
 - **Dashboard** — Overview of all certificates with status, expiry timeline, and statistics
