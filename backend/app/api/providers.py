@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, visible_group_ids
@@ -28,7 +29,10 @@ def list_cas(
     user: User = Depends(get_current_user),
 ):
     cas = db.query(CertificateAuthority).filter(
-        CertificateAuthority.group_id.in_(visible_group_ids(db, user, "providers")),
+        or_(
+            CertificateAuthority.group_id.in_(visible_group_ids(db, user, "providers")),
+            CertificateAuthority.group_id.is_(None),
+        ),
         CertificateAuthority.is_active == True,
     ).order_by(CertificateAuthority.name).all()
     result = []
@@ -80,7 +84,13 @@ def update_ca(
 ):
     ca = (
         db.query(CertificateAuthority)
-        .filter(CertificateAuthority.id == ca_id, CertificateAuthority.group_id.in_(visible_group_ids(db, user, "providers")))
+        .filter(
+            CertificateAuthority.id == ca_id,
+            or_(
+                CertificateAuthority.group_id.in_(visible_group_ids(db, user, "providers")),
+                CertificateAuthority.group_id.is_(None),
+            ),
+        )
         .first()
     )
     if not ca:
