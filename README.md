@@ -319,14 +319,79 @@ backend certdax
 |----------|--------|-------------|
 | `/api/auth/register` | POST | Create first admin account |
 | `/api/auth/login` | POST | Login |
-| `/api/certificates` | GET | List certificates |
-| `/api/certificates/request` | POST | Request new certificate |
-| `/api/certificates/{id}/renew` | POST | Renew certificate |
+| `/api/certificates` | GET | List ACME certificates |
+| `/api/certificates/request` | POST | Request new ACME certificate |
+| `/api/certificates/{id}/renew` | POST | Renew ACME certificate |
 | `/api/providers/cas` | GET | List Certificate Authorities |
 | `/api/providers/dns` | GET/POST | Manage DNS providers |
+| `/api/self-signed` | GET | List self-signed certificates (filter: `?is_ca=true`, `?search=`) |
+| `/api/self-signed` | POST | Create self-signed or CA-signed certificate |
+| `/api/self-signed/{id}` | GET | Get certificate details (incl. PEM) |
+| `/api/self-signed/{id}` | DELETE | Delete certificate (`?force=true` to force) |
+| `/api/self-signed/{id}/renew` | POST | Renew certificate (`?validity_days=365`) |
+| `/api/self-signed/{id}/parsed` | GET | Parsed X.509 certificate details |
+| `/api/self-signed/{id}/download/zip` | GET | Download cert + key as ZIP |
+| `/api/self-signed/{id}/download/pem/{type}` | GET | Download PEM (type: `certificate`, `privatekey`, `combined`, `chain`, `ca`) |
+| `/api/self-signed/{id}/download/pfx` | GET | Download as PFX/PKCS#12 |
 | `/api/agents` | GET/POST | Manage deploy agents |
+| `/api/agent-groups` | GET/POST | Manage agent groups |
 | `/api/agent/poll` | GET | Agent: fetch pending deployments |
 | `/api/agent/heartbeat` | POST | Agent: heartbeat |
+
+### Self-Signed Certificate API Examples
+
+**Create a self-signed certificate:**
+
+```bash
+curl -X POST https://certdax.example.com/api/self-signed \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "common_name": "myserver.local",
+    "san_domains": ["*.myserver.local"],
+    "organization": "MyCompany",
+    "country": "NL",
+    "key_type": "rsa",
+    "key_size": 4096,
+    "validity_days": 365
+  }'
+```
+
+**Create a CA certificate:**
+
+```bash
+curl -X POST https://certdax.example.com/api/self-signed \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "common_name": "My Internal CA",
+    "organization": "MyCompany",
+    "country": "NL",
+    "key_type": "rsa",
+    "key_size": 4096,
+    "validity_days": 3650,
+    "is_ca": true
+  }'
+```
+
+**Sign a certificate with an existing CA:**
+
+```bash
+curl -X POST https://certdax.example.com/api/self-signed \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "common_name": "app.internal",
+    "san_domains": ["app.internal", "api.internal"],
+    "organization": "MyCompany",
+    "key_type": "rsa",
+    "key_size": 4096,
+    "validity_days": 365,
+    "ca_id": 1
+  }'
+```
+
+> **Note:** Set `ca_id` to the ID of a certificate created with `is_ca: true`. The certificate will be signed by that CA instead of being self-signed. The CA chain is automatically included in ZIP and PFX downloads.
 
 ## Scaling (Docker Swarm / Kubernetes)
 

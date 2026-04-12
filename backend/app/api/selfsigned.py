@@ -325,13 +325,14 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
     return cert_pem, key_pem
 
 
-@router.get("", response_model=list[SelfSignedResponse])
+@router.get("", response_model=list[SelfSignedResponse], summary="List self-signed certificates")
 def list_self_signed(
-    search: str | None = Query(None),
-    is_ca: bool | None = Query(None),
+    search: str | None = Query(None, description="Filter by common name (case-insensitive substring match)"),
+    is_ca: bool | None = Query(None, description="Filter by CA status: true = only CAs, false = only non-CAs"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """List all self-signed certificates visible to the current user. Supports filtering by name and CA status."""
     query = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed")))
     if search:
         query = query.filter(SelfSignedCertificate.common_name.ilike(f"%{search}%"))
@@ -350,12 +351,13 @@ def list_self_signed(
     return result
 
 
-@router.get("/{cert_id}", response_model=SelfSignedDetailResponse)
+@router.get("/{cert_id}", response_model=SelfSignedDetailResponse, summary="Get self-signed certificate details")
 def get_self_signed(
     cert_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Get full details of a self-signed certificate including the PEM-encoded certificate."""
     cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert_id, SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed"))).first()
     if not cert:
         raise HTTPException(status_code=404, detail="Certificate not found")
@@ -368,12 +370,15 @@ def get_self_signed(
     return resp
 
 
-@router.post("", response_model=SelfSignedResponse)
+@router.post("", response_model=SelfSignedResponse, summary="Create a self-signed or CA-signed certificate")
 def create_self_signed(
     req: SelfSignedRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Create a new certificate. By default it is self-signed. Set `is_ca: true` to create a
+    CA certificate. Set `ca_id` to the ID of an existing CA certificate to create a certificate
+    signed by that CA instead of self-signing it."""
     # Validate
     if not req.common_name.strip():
         raise HTTPException(status_code=400, detail="Common Name is required")
@@ -448,13 +453,14 @@ def create_self_signed(
     return resp
 
 
-@router.delete("/{cert_id}")
+@router.delete("/{cert_id}", summary="Delete a self-signed certificate")
 def delete_self_signed(
     cert_id: int,
-    force: bool = Query(False),
+    force: bool = Query(False, description="Force delete even if the certificate is still assigned to agents"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Delete a self-signed certificate. Returns 409 if it is still in use unless `force=true`."""
     cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert_id, SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed"))).first()
     if not cert:
         raise HTTPException(status_code=404, detail="Certificate not found")
@@ -532,13 +538,16 @@ def delete_self_signed(
     return {"detail": "Certificate deleted"}
 
 
-@router.post("/{cert_id}/renew", response_model=SelfSignedDetailResponse)
+@router.post("/{cert_id}/renew", response_model=SelfSignedDetailResponse, summary="Renew a self-signed certificate")
 def renew_self_signed(
     cert_id: int,
-    validity_days: int | None = Query(None, ge=1, le=3650),
+    validity_days: int | None = Query(None, ge=1, le=3650, description="Override validity period in days (defaults to original value)"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Renew a certificate by regenerating it with a new key pair. If the certificate was
+    originally signed by a CA, it will be re-signed by the same CA. Triggers auto-deployment
+    to all assigned agents."""
     cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert_id, SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed"))).first()
     if not cert:
         raise HTTPException(status_code=404, detail="Certificate not found")
@@ -575,6 +584,8 @@ def renew_self_signed(
         cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)
     else:
         cert_pem, key_pem = _generate_self_signed(req)
+
+    now = datetime.now(timezone.utc)
     cert.certificate_pem = cert_pem
     cert.private_key_pem_encrypted = encrypt(key_pem)
     cert.validity_days = effective_days
@@ -647,13 +658,15 @@ def get_self_signed_parsed(
     return {"certificate": _parse_x509_details(cert.certificate_pem)}
 
 
-@router.get("/{cert_id}/download/zip")
+@router.get("/{cert_id}/download/zip", summary="Download certificate as ZIP")
 def download_self_signed_zip(
     cert_id: int,
-    password: str | None = Query(None),
+    password: str | None = Query(None, description="Optional password to encrypt the private key"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Download the certificate and private key as a ZIP archive. For CA-signed certificates,
+    the ZIP also includes the CA certificate and a full-chain file."""
     cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert_id, SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed"))).first()
     if not cert or not cert.certificate_pem:
         raise HTTPException(status_code=404, detail="Certificate not found")
@@ -689,11 +702,11 @@ def download_self_signed_zip(
     )
 
 
-@router.get("/{cert_id}/download/pem/{file_type}")
+@router.get("/{cert_id}/download/pem/{file_type}", summary="Download certificate component as PEM")
 def download_self_signed_pem(
     cert_id: int,
     file_type: str,
-    password: str | None = Query(None),
+    password: str | None = Query(None, description="Optional password to encrypt the private key"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -747,13 +760,15 @@ def download_self_signed_pem(
     )
 
 
-@router.get("/{cert_id}/download/pfx")
+@router.get("/{cert_id}/download/pfx", summary="Download certificate as PFX/PKCS#12")
 def download_self_signed_pfx(
     cert_id: int,
-    password: str | None = Query(None),
+    password: str | None = Query(None, description="Optional password to encrypt the PFX file"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Download the certificate as a PFX/PKCS#12 file for Windows Server / IIS.
+    For CA-signed certificates, the CA chain is included in the PFX."""
     from cryptography.hazmat.primitives.serialization import pkcs12
 
     cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert_id, SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed"))).first()
