@@ -280,7 +280,7 @@ class AcmeClient:
                 record_name = f"_acme-challenge.{clean_domain}"
                 logger.info(f"Creating DNS TXT record: {record_name}")
                 await dns_provider.create_txt_record(clean_domain, record_name, dns_value)
-                await asyncio.sleep(10)
+                await asyncio.sleep(30)
 
             await self.respond_to_challenge(challenge["url"])
             await self.poll_authorization(authz_url)

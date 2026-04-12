@@ -294,9 +294,9 @@ async def dry_run_certificate(
 
                     yield make_event(
                         f"Creating DNS record: {domain}",
-                        f"TXT record '{record_name}' created. Waiting for DNS propagation (10s)...",
+                        f"TXT record '{record_name}' created. Waiting for DNS propagation (30s)...",
                     )
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(30)
 
                 # Respond to challenge
                 yield make_event(
