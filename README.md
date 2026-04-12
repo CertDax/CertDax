@@ -44,9 +44,9 @@ A complete SSL certificate management system with web dashboard, ACME integratio
 cp .env.example .env
 
 # 2. Generate required secrets
-python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(64))"
-python -c "import base64, os; print('ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
-python -c "import secrets; print('DB_PASSWORD=' + secrets.token_urlsafe(32))"
+python3 -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(64))"
+python3 -c "import base64, os; print('ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
+python3 -c "import secrets; print('DB_PASSWORD=' + secrets.token_urlsafe(32))"
 
 # 3. Edit .env with the generated values and your domain
 nano .env
@@ -62,9 +62,9 @@ docker compose up -d
 **Backend:**
 ```bash
 cd backend
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 
 # Create a .env for development
 cat > .env << EOF
