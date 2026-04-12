@@ -1,0 +1,66 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: certdax
+      POSTGRES_USER: certdax
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U certdax"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - backend-data:/app/data
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://certdax:${DB_PASSWORD}@db:5432/certdax
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  db-data:
+  backend-data:

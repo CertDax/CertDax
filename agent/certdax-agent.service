@@ -1,0 +1,21 @@
+[Unit]
+Description=CertDax Deploy Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/certdax-agent --config /etc/certdax/config.yaml
+Restart=always
+RestartSec=10
+User=root
+
+# Security hardening
+ProtectSystem=strict
+ReadWritePaths=/etc/ssl /etc/nginx /etc/apache2 /etc/haproxy /etc/certdax
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

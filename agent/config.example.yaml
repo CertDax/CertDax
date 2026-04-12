@@ -1,0 +1,11 @@
+# CertDax Agent Configuration
+# Copy this file to config.yaml and fill in the values
+
+# URL of the CertDax API server
+api_url: "https://certdax.example.com"
+
+# Agent token (obtained when creating a deployment target in the UI)
+agent_token: "your-agent-token-here"
+
+# How often to check for new deployments (in seconds)
+poll_interval: 30

@@ -1,0 +1,56 @@
+# ─── Environment & secrets ────────────────────────────────────────────
+.env
+.env.local
+.env.production
+
+# ─── Database ─────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ─── Encryption keys ─────────────────────────────────────────────────
+.encryption_key
+backend/data/.encryption_key
+
+# ─── Data directory (runtime) ─────────────────────────────────────────
+backend/data/
+
+# ─── Python ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+backend/venv/
+.venv/
+venv/
+
+# ─── Node.js ──────────────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+.npm
+.yarn
+
+# ─── IDE ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ─── Go agent build output ───────────────────────────────────────────
+agent/dist/
+agent/certdax-agent
+
+# ─── Docker ───────────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ─── OS ───────────────────────────────────────────────────────────────
+*.log
+*.pid
