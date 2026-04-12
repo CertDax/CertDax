@@ -278,12 +278,14 @@ def notify_certificate_renewed(
     expires_at: str,
     renewed_by: str = "",
     renewed_at: str = "",
+    validity_days: int | str = "",
 ):
     subject, body_html = _render_template("certificate_renewed", {
         "common_name": common_name,
         "expires_at": expires_at,
         "renewed_by": renewed_by,
         "renewed_at": renewed_at,
+        "validity_days": str(validity_days),
     })
     _send_notification(group_id, subject, body_html, resource_type="certificates")
 
@@ -339,11 +341,13 @@ def notify_selfsigned_renewed(
     common_name: str,
     renewed_by: str = "",
     renewed_at: str = "",
+    validity_days: int | str = "",
 ):
     subject, body_html = _render_template("selfsigned_renewed", {
         "common_name": common_name,
         "renewed_by": renewed_by,
         "renewed_at": renewed_at,
+        "validity_days": str(validity_days),
     })
     _send_notification(group_id, subject, body_html, resource_type="self_signed")
 

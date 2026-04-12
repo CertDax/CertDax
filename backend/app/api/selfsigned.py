@@ -403,6 +403,7 @@ def renew_self_signed(
         common_name=cert.common_name,
         renewed_by=user.display_name or user.username,
         renewed_at=format_now(),
+        validity_days=effective_days,
     )
 
     resp = SelfSignedDetailResponse.model_validate(cert)

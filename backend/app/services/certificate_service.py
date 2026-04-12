@@ -140,12 +140,14 @@ async def process_certificate_request(cert_id: int):
             # Email notification
             if _is_renewal:
                 from app.services.email_service import notify_certificate_renewed
+                _validity_days = (expires_at - issued_at).days if issued_at and expires_at else ""
                 notify_certificate_renewed(
                     group_id=cert.group_id,
                     common_name=cert.common_name,
                     expires_at=expires_at.strftime("%Y-%m-%d") if expires_at else "Unknown",
                     renewed_by=_username,
                     renewed_at=_now,
+                    validity_days=_validity_days,
                 )
             else:
                 from app.services.email_service import notify_certificate_issued

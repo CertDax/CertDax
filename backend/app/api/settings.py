@@ -295,13 +295,13 @@ _TEMPLATE_VARIABLES: dict[str, list[str]] = {
     "password_reset": ["username", "reset_url"],
     "certificate_requested": ["common_name", "requested_by", "requested_at"],
     "certificate_issued": ["common_name", "expires_at", "issued_by", "issued_at"],
-    "certificate_renewed": ["common_name", "expires_at", "renewed_by", "renewed_at"],
+    "certificate_renewed": ["common_name", "expires_at", "renewed_by", "renewed_at", "validity_days"],
     "certificate_revoked": ["common_name"],
     "certificate_error": ["common_name", "error_message"],
     "certificate_expired": ["common_name"],
     "certificate_deleted": ["common_name", "deleted_by", "deleted_at"],
     "selfsigned_created": ["common_name", "created_by", "created_at"],
-    "selfsigned_renewed": ["common_name", "renewed_by", "renewed_at"],
+    "selfsigned_renewed": ["common_name", "renewed_by", "renewed_at", "validity_days"],
     "selfsigned_deleted": ["common_name", "deleted_by", "deleted_at"],
 }
 
@@ -361,6 +361,8 @@ def _default_templates() -> dict[str, dict]:
                 '<table style="width: 100%; border-collapse: collapse;">'
                 '  <tr><td style="padding: 8px 0; color: #64748b;">Domain</td>'
                 '  <td style="padding: 8px 0; font-weight: 600;">{{common_name}}</td></tr>'
+                '  <tr><td style="padding: 8px 0; color: #64748b;">Validity</td>'
+                '  <td style="padding: 8px 0; font-weight: 600;">{{validity_days}} days</td></tr>'
                 '  <tr><td style="padding: 8px 0; color: #64748b;">New expiry date</td>'
                 '  <td style="padding: 8px 0; font-weight: 600;">{{expires_at}}</td></tr>'
                 '  <tr><td style="padding: 8px 0; color: #64748b;">Renewed by</td>'
@@ -438,6 +440,8 @@ def _default_templates() -> dict[str, dict]:
                 '<table style="width: 100%; border-collapse: collapse;">'
                 '  <tr><td style="padding: 8px 0; color: #64748b;">Domain</td>'
                 '  <td style="padding: 8px 0; font-weight: 600;">{{common_name}}</td></tr>'
+                '  <tr><td style="padding: 8px 0; color: #64748b;">Validity</td>'
+                '  <td style="padding: 8px 0; font-weight: 600;">{{validity_days}} days</td></tr>'
                 '  <tr><td style="padding: 8px 0; color: #64748b;">Renewed by</td>'
                 '  <td style="padding: 8px 0; font-weight: 600;">{{renewed_by}}</td></tr>'
                 '  <tr><td style="padding: 8px 0; color: #64748b;">Renewed at</td>'

@@ -623,9 +623,9 @@ def get_install_script(
     if _settings.API_BASE_URL:
         api_url = _settings.API_BASE_URL.rstrip("/")
     else:
-        forwarded_proto = request.headers.get("x-forwarded-proto")
+        forwarded_proto = request.headers.get("x-forwarded-proto", "https")
         forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
-        if forwarded_host and forwarded_proto:
+        if forwarded_host:
             api_url = f"{forwarded_proto}://{forwarded_host}"
         else:
             api_url = str(request.base_url).rstrip("/")
