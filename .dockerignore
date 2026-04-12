@@ -9,5 +9,8 @@ backend/*.db
 # Frontend (not needed for backend build)
 frontend/node_modules/
 
+# Agent build output (built in Docker)
+agent/dist/
+
 # Git
 .git/

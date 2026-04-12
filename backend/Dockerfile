@@ -1,3 +1,17 @@
+# Stage 1: Build agent binaries for all architectures
+FROM golang:1.23-alpine AS agent-builder
+
+WORKDIR /build
+COPY agent/go.mod agent/go.sum ./
+RUN go mod download
+COPY agent/main.go ./
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o /out/certdax-agent-linux-amd64 . && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-s -w" -o /out/certdax-agent-linux-arm64 . && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm   go build -ldflags "-s -w" -o /out/certdax-agent-linux-arm   . && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=386   go build -ldflags "-s -w" -o /out/certdax-agent-linux-386   .
+
+# Stage 2: Backend application
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -9,8 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/app/ ./app/
 
-# Include agent binaries in image
-COPY agent/dist/ ./agent-dist/
+# Copy agent binaries from builder stage
+COPY --from=agent-builder /out/ ./agent-dist/
 
 RUN useradd --create-home --no-log-init appuser
 USER appuser
