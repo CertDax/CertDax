@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from pydantic import BaseModel, field_validator
 
+from app.schemas.certificate import OidEntry
+
 
 class SelfSignedRequest(BaseModel):
     common_name: str
@@ -14,6 +16,7 @@ class SelfSignedRequest(BaseModel):
     key_size: int = 4096  # RSA: 2048/4096, EC: 256/384
     validity_days: int = 365
     is_ca: bool = False
+    custom_oids: list[OidEntry] | None = None
 
 
 class SelfSignedResponse(BaseModel):
@@ -29,6 +32,7 @@ class SelfSignedResponse(BaseModel):
     key_size: int
     validity_days: int
     is_ca: bool
+    custom_oids: str | None = None
     issued_at: datetime | None = None
     expires_at: datetime | None = None
     created_by_username: str | None = None

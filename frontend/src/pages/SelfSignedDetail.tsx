@@ -23,9 +23,10 @@ import {
   ShieldCheck,
   RefreshCw,
   User,
+  Tag,
 } from 'lucide-react';
 import api from '../services/api';
-import type { SelfSignedDetail as SelfSignedDetailType } from '../types';
+import type { SelfSignedDetail as SelfSignedDetailType, OidEntry } from '../types';
 
 export default function SelfSignedDetail() {
   const { id } = useParams();
@@ -341,6 +342,29 @@ export default function SelfSignedDetail() {
           </div>
         </div>
       )}
+
+      {/* OIDs */}
+      {(() => {
+        const customOids: OidEntry[] = cert.custom_oids ? JSON.parse(cert.custom_oids) : [];
+        return customOids.length > 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <Tag className="w-5 h-5" />
+              Object Identifiers (OID)
+            </h2>
+            <div className="space-y-2">
+              {customOids.map((oid, i) => (
+                <div key={i} className="flex items-center gap-3 text-sm">
+                  <span className="font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded">
+                    {oid.oid}
+                  </span>
+                  <span className="text-slate-600">{oid.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Download Section */}
       {cert.certificate_pem && (

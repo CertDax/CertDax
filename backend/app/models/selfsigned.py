@@ -23,6 +23,7 @@ class SelfSignedCertificate(Base):
     key_size: Mapped[int] = mapped_column(Integer, default=4096)  # RSA bits or EC curve size
     validity_days: Mapped[int] = mapped_column(Integer, default=365)
     is_ca: Mapped[bool] = mapped_column(Boolean, default=False)
+    custom_oids: Mapped[str | None] = mapped_column(Text, nullable=True)
     certificate_pem: Mapped[str | None] = mapped_column(Text, nullable=True)
     private_key_pem_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     issued_at: Mapped[datetime | None] = mapped_column(

@@ -167,6 +167,7 @@ export interface SelfSignedCertificate {
   key_size: number;
   validity_days: number;
   is_ca: boolean;
+  custom_oids: string | null;
   issued_at: string | null;
   expires_at: string | null;
   created_by_username: string | null;

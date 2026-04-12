@@ -13,9 +13,11 @@ import {
   Building2,
   X,
   Server,
+  Tag,
+  Minus,
 } from 'lucide-react';
 import api from '../services/api';
-import type { SelfSignedCertificate, AgentGroupInfo, DeploymentTarget } from '../types';
+import type { SelfSignedCertificate, AgentGroupInfo, DeploymentTarget, OidEntry } from '../types';
 
 export default function SelfSigned() {
   const navigate = useNavigate();
@@ -33,6 +35,8 @@ export default function SelfSigned() {
   const [agentGroups, setAgentGroups] = useState<AgentGroupInfo[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState(agentGroupParam || '');
   const [deployFormat, setDeployFormat] = useState('crt');
+  const [customOids, setCustomOids] = useState<OidEntry[]>([]);
+  const [showOids, setShowOids] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -89,6 +93,9 @@ export default function SelfSigned() {
       if (form.state.trim()) payload.state = form.state.trim();
       if (form.locality.trim()) payload.locality = form.locality.trim();
 
+      const validOids = customOids.filter((o) => o.oid.trim() && o.value.trim());
+      if (validOids.length > 0) payload.custom_oids = validOids;
+
       const res = await api.post('/self-signed', payload);
 
       // If an agent group was selected, assign the new cert to the group
@@ -119,6 +126,8 @@ export default function SelfSigned() {
 
       setShowForm(false);
       setSelectedGroupId('');
+      setCustomOids([]);
+      setShowOids(false);
       setForm({
         common_name: '',
         san_domains: '',
@@ -388,6 +397,74 @@ export default function SelfSigned() {
               </label>
               <span className="text-sm font-medium text-slate-700">CA certificate</span>
               <span className="text-xs text-slate-400">(can sign other certificates)</span>
+            </div>
+
+            {/* Custom OIDs */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
+                  <Tag className="w-4 h-4" />
+                  Object Identifiers (OID)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowOids(!showOids)}
+                  className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+                >
+                  {showOids ? 'Hide' : 'Add OIDs'}
+                </button>
+              </div>
+              {showOids && (
+                <div className="space-y-3 p-4 bg-slate-50 rounded-lg">
+                  <p className="text-xs text-slate-500 mb-2">
+                    Add OIDs for specific purposes, e.g. Extended Key Usage for Windows Server.
+                    <br />
+                    <span className="font-mono">1.3.6.1.5.5.7.3.1</span> = Server Authentication,{' '}
+                    <span className="font-mono">1.3.6.1.5.5.7.3.2</span> = Client Authentication
+                  </p>
+                  {customOids.map((oid, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={oid.oid}
+                        onChange={(e) => {
+                          const updated = [...customOids];
+                          updated[index] = { ...updated[index], oid: e.target.value };
+                          setCustomOids(updated);
+                        }}
+                        placeholder="1.3.6.1.5.5.7.3.1"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={oid.value}
+                        onChange={(e) => {
+                          const updated = [...customOids];
+                          updated[index] = { ...updated[index], value: e.target.value };
+                          setCustomOids(updated);
+                        }}
+                        placeholder="Description / value"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCustomOids(customOids.filter((_, i) => i !== index))}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCustomOids([...customOids, { oid: '', value: '' }])}
+                    className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700 font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add OID
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Agent Group assignment */}

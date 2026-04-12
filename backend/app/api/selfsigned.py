@@ -16,6 +16,7 @@ from app.database import get_db
 from app.models.deployment import AgentCertificate, CertificateDeployment, DeploymentTarget
 from app.models.selfsigned import SelfSignedCertificate
 from app.models.user import User
+from app.schemas.certificate import OidEntry
 from app.schemas.selfsigned import (
     SelfSignedDetailResponse,
     SelfSignedRequest,
@@ -58,6 +59,10 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
         name_attrs.append(x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, req.state))
     if req.locality:
         name_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, req.locality))
+    if req.custom_oids:
+        for oid_entry in req.custom_oids:
+            oid_obj = x509.ObjectIdentifier(oid_entry.oid)
+            name_attrs.append(x509.NameAttribute(oid_obj, oid_entry.value))
 
     subject = x509.Name(name_attrs)
     now = datetime.now(timezone.utc)
@@ -130,6 +135,19 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
             ]),
             critical=False,
         )
+
+    # Custom EKU OIDs
+    if req.custom_oids:
+        eku_oids = [
+            e for e in req.custom_oids
+            if e.oid.startswith("1.3.6.1.5.5.7.3.")
+            or e.oid.startswith("1.3.6.1.4.1.")
+        ]
+        if eku_oids:
+            eku_list = [x509.ObjectIdentifier(e.oid) for e in eku_oids]
+            builder = builder.add_extension(
+                x509.ExtendedKeyUsage(eku_list), critical=False,
+            )
 
     # Subject Key Identifier
     builder = builder.add_extension(
@@ -221,6 +239,7 @@ def create_self_signed(
         key_size=req.key_size,
         validity_days=req.validity_days,
         is_ca=req.is_ca,
+        custom_oids=json.dumps([o.model_dump() for o in req.custom_oids]) if req.custom_oids else None,
         certificate_pem=cert_pem,
         private_key_pem_encrypted=encrypt(key_pem),
         issued_at=now,
@@ -345,6 +364,7 @@ def renew_self_signed(
 
     # Reconstruct the request from existing record
     san_list = json.loads(cert.san_domains) if cert.san_domains else None
+    oid_list = [OidEntry(**o) for o in json.loads(cert.custom_oids)] if cert.custom_oids else None
     req = SelfSignedRequest(
         common_name=cert.common_name,
         san_domains=san_list,
@@ -357,6 +377,7 @@ def renew_self_signed(
         key_size=cert.key_size,
         validity_days=effective_days,
         is_ca=cert.is_ca,
+        custom_oids=oid_list,
     )
 
     cert_pem, key_pem = _generate_self_signed(req)

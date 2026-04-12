@@ -121,6 +121,12 @@ def _migrate_db():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE certificates ADD COLUMN custom_oids TEXT"))
 
+    if "self_signed_certificates" in existing_tables:
+        existing_cols = {c["name"] for c in inspector.get_columns("self_signed_certificates")}
+        if "custom_oids" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE self_signed_certificates ADD COLUMN custom_oids TEXT"))
+
     if "agent_certificates" in existing_tables:
         existing_cols = {c["name"] for c in inspector.get_columns("agent_certificates")}
         if "deploy_format" not in existing_cols:
