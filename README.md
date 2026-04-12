@@ -1,41 +1,32 @@
-# CertDax - SSL Certificate Management Dashboard
+# CertDax — SSL Certificate Management Dashboard
 
-A complete SSL certificate management system with web dashboard, ACME integration, and automated deployment.
+A complete SSL certificate management platform with web dashboard, ACME integration, CA signing, deploy agents, and automated renewal.
 
 ## Features
 
-- **Dashboard** — Overview of all certificates with status, expiry dates and statistics
-- **ACME Protocol** — Automatically request certificates from Let's Encrypt and other ACME-compatible CAs
-- **DNS Providers** — Support for Cloudflare, TransIP, Hetzner, DigitalOcean, Vultr, OVH, AWS Route 53, Google Cloud DNS and manual DNS validation
-- **Auto-renewal** — Automatically renew certificates before they expire
-- **Deploy Agent** — Lightweight agent for automated deployment to servers
-- **Self-signed** — Generate self-signed certificates for internal use
-- **Agent Groups** — Group agents and share certificates across servers
-- **Email Notifications** — Customizable email templates for certificate events
-- **SSO / OIDC** — Single sign-on via OpenID Connect providers
-- **API** — Full REST API with key-based authentication
-- **Secure** — Private keys encrypted at rest, JWT authentication, hashed agent tokens
+- **Dashboard** — Overview of all certificates with status, expiry timeline, and statistics
+- **ACME Protocol** — Request certificates from Let's Encrypt and other ACME-compatible CAs (DNS-01 and HTTP-01 challenges)
+- **Self-Signed & CA Signing** — Generate self-signed certificates, create internal CAs, and sign certificates with your own CA
+- **Auto-Renewal** — Automatic certificate renewal with configurable per-certificate thresholds
+- **Deploy Agents** — Lightweight Go agents for automated certificate deployment to servers (amd64, arm64, arm, 386)
+- **Agent Groups** — Group agents and share certificates across multiple servers
+- **DNS Providers** — Cloudflare, TransIP, Hetzner, DigitalOcean, Vultr, OVH, AWS Route 53, Google Cloud DNS, and manual validation
+- **Multi-Tenant** — Group-based resource isolation with inter-group sharing
+- **SSO / OIDC** — Single sign-on via Authentik, Keycloak, Entra ID, or any OpenID Connect provider with auto-provisioning and admin group mapping
+- **Email Notifications** — Customizable HTML email templates for certificate events (expiry, renewal, creation, deletion)
+- **API** — Full REST API with API key authentication for scripts, CI/CD, and automation
+- **Password Reset** — Secure token-based password recovery via email
+- **Security** — Private keys and credentials encrypted at rest, JWT authentication, hashed agent tokens, CORS configuration, Swagger disabled in production
 
-## Architecture
+## Tech Stack
 
-```
-┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
-│   Frontend   │────▶│   Backend   │────▶│  ACME Servers    │
-│  (React)     │     │  (FastAPI)  │     │  (Let's Encrypt) │
-└─────────────┘     └──────┬──────┘     └──────────────────┘
-                           │
-                    ┌──────┴──────┐
-                    │  Database   │
-                    │ SQLite/PG   │
-                    └──────┬──────┘
-                           │
-              ┌────────────┼────────────┐
-              ▼            ▼            ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │  Agent   │ │  Agent   │ │  Agent   │
-        │ Server 1 │ │ Server 2 │ │ Server 3 │
-        └──────────┘ └──────────┘ └──────────┘
-```
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React, TypeScript, Tailwind CSS, Recharts |
+| **Backend** | Python, FastAPI, SQLAlchemy, cryptography |
+| **Database** | PostgreSQL (production) / SQLite (development) |
+| **Agent** | Go (statically linked, zero dependencies) |
+| **Infrastructure** | Docker, Docker Compose, Nginx |
 
 ## Quick Start (Docker Compose)
 
@@ -88,10 +79,32 @@ Open http://localhost:5173 in your browser.
 
 ## First Use
 
-1. Open the application and create an admin account
-2. Go to **Providers** and configure a DNS provider (e.g. Cloudflare)
-3. Go to **Certificates** → **New certificate** and request your first certificate
-4. (Optional) Set up **Agents** and install the deploy agent on your servers
+1. Open the application and create the first admin account
+2. Go to **Settings** → configure SMTP for email notifications (optional)
+3. Go to **Settings** → configure OIDC/SSO for single sign-on (optional)
+4. Go to **Providers** and add a DNS provider (e.g. Cloudflare) and/or Certificate Authority
+5. Go to **Certificates** → **New certificate** and request your first ACME certificate
+6. Go to **Self-Signed** to generate internal certificates or create a CA
+7. (Optional) Set up **Agents** and install the deploy agent on your servers
+8. (Optional) Go to **API** to create API keys for scripting and automation
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SECRET_KEY` | Yes | — | JWT signing key. Must be identical across all replicas |
+| `ENCRYPTION_KEY` | Recommended | Auto-generated | Encryption key for private keys and secrets. **Must be identical** across replicas |
+| `DB_PASSWORD` | Docker only | — | PostgreSQL password (Docker Compose sets up the database automatically) |
+| `DATABASE_URL` | No | `sqlite:///./data/certdax.db` | Database connection string. Use PostgreSQL for production |
+| `ACME_CONTACT_EMAIL` | No | `admin@example.com` | Contact email for ACME certificate requests |
+| `JWT_EXPIRY_MINUTES` | No | `1440` | JWT token lifetime in minutes |
+| `RENEWAL_CHECK_HOURS` | No | `12` | How often to check for certificates needing renewal |
+| `RENEWAL_THRESHOLD_DAYS` | No | `30` | Default days before expiry to trigger auto-renewal |
+| `CORS_ORIGINS` | Yes | — | Comma-separated list of allowed frontend origins |
+| `API_BASE_URL` | No | Auto-detected | Public backend URL (used in agent install scripts) |
+| `FRONTEND_URL` | Yes | — | Public frontend URL (used in password reset emails) |
+| `AGENT_BINARIES_DIR` | No | `agent-dist` | Directory containing agent binaries |
+| `DEBUG` | No | `false` | Enable Swagger/OpenAPI docs at `/docs` and `/redoc` |
 
 ## Deploy Agent
 
@@ -434,21 +447,17 @@ Use the Docker images with a standard deployment. Key points:
 - Point `DATABASE_URL` to a managed PostgreSQL (e.g. CloudSQL, RDS, or an in-cluster instance)
 - Copy agent binaries into `backend/agent-dist/` before building the image
 
-## Tech Stack
-
-- **Backend**: Python, FastAPI, SQLAlchemy, cryptography
-- **Frontend**: React, TypeScript, Tailwind CSS, Recharts
-- **Agent**: Go (statically linked binary, no dependencies)
-- **Infrastructure**: Docker, Docker Compose, Nginx, PostgreSQL
-
 ## Security
 
-- Private keys encrypted at rest with Fernet (AES-128-CBC + HMAC)
-- User passwords hashed with bcrypt
-- Agent tokens hashed with SHA-256
-- JWT tokens for web authentication
-- API key authentication for programmatic access
-- CORS configurable per environment
-- Swagger/OpenAPI docs disabled in production
-- Non-root container user for backend
-- Distributed locking for cluster-safe scheduled tasks
+| Mechanism | Details |
+|-----------|---------|
+| **Private key encryption** | Fernet (AES-128-CBC + HMAC) at rest |
+| **Credential encryption** | DNS provider and OIDC secrets encrypted at rest |
+| **Password hashing** | bcrypt |
+| **Agent tokens** | SHA-256 hashed |
+| **API keys** | SHA-256 hashed, 25 keys per user limit |
+| **Authentication** | JWT tokens (configurable expiry) + API key fallback |
+| **CORS** | Configurable per environment |
+| **OpenAPI/Swagger** | Disabled in production |
+| **Container** | Non-root user for backend |
+| **Cluster safety** | Database-backed distributed locking for scheduled tasks |
