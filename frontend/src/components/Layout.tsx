@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import {
   LayoutDashboard,
@@ -15,6 +15,8 @@ import {
   FolderTree,
   Mail,
   Key,
+  Menu,
+  X,
 } from 'lucide-react';
 import api from '../services/api';
 import type { User } from '../types';
@@ -32,8 +34,10 @@ const navItems = [
 
 export default function Layout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -60,6 +64,11 @@ export default function Layout() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Close sidebar on navigation (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
@@ -67,9 +76,21 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col">
-        <div className="p-6 border-b border-slate-700">
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-200 ease-in-out lg:relative lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-500 rounded-lg flex items-center justify-center">
               <Lock className="w-6 h-6 text-white" />
@@ -79,6 +100,12 @@ export default function Layout() {
               <p className="text-xs text-slate-400">SSL Dashboard</p>
             </div>
           </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-1 text-slate-400 hover:text-white transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
@@ -156,9 +183,21 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top header bar */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-end px-8 shrink-0">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="lg:hidden flex items-center gap-2">
+            <div className="w-7 h-7 bg-emerald-500 rounded-md flex items-center justify-center">
+              <Lock className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-bold text-slate-900">CertDax</span>
+          </div>
           {currentUser && (
             <div className="relative" ref={menuRef}>
               <button
@@ -213,7 +252,7 @@ export default function Layout() {
         </header>
 
         <main className="flex-1 overflow-auto bg-slate-50">
-          <div className="p-8">
+          <div className="p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>
         </main>

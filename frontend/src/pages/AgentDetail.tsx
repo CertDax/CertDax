@@ -208,7 +208,7 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase font-medium mb-1">Status</p>
           <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Deployment stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase font-medium mb-1">
             Total deployments
@@ -435,7 +435,7 @@ export default function AgentDetailPage() {
         {showAssignForm && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-4">
             <form onSubmit={handleAssign} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Certificate

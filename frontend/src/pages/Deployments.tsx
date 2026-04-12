@@ -53,7 +53,8 @@ export default function Deployments() {
   }));
 
   const renderDeploymentTable = (deps: CertificateDeployment[]) => (
-    <table className="w-full table-fixed">
+    <div className="overflow-x-auto">
+    <table className="w-full table-fixed min-w-[600px]">
       <colgroup>
         <col className="w-[45%]" />
         <col className="w-[15%]" />
@@ -123,6 +124,7 @@ export default function Deployments() {
         ))}
       </tbody>
     </table>
+    </div>
   );
 
   if (loading) {
@@ -220,7 +222,8 @@ export default function Deployments() {
                   ) : (
                     <>
                       {/* Column headers */}
-                      <table className="w-full table-fixed">
+                      <div className="overflow-x-auto">
+                      <table className="w-full table-fixed min-w-[600px]">
                         <colgroup>
                           <col className="w-[45%]" />
                           <col className="w-[15%]" />
@@ -244,6 +247,7 @@ export default function Deployments() {
                           </tr>
                         </thead>
                       </table>
+                      </div>
 
                       {/* ACME Certificates */}
                       {agentDeps.filter((d) => d.certificate_type !== 'self-signed').length > 0 && (

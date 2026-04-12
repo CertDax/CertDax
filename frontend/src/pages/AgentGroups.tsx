@@ -119,7 +119,7 @@ export default function AgentGroups() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">

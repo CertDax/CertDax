@@ -269,7 +269,7 @@ export default function Setup() {
 
               {configureSmtp && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         SMTP Host
@@ -295,7 +295,7 @@ export default function Setup() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Username
@@ -322,7 +322,7 @@ export default function Setup() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Sender email

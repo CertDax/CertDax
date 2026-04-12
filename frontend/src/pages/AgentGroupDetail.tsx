@@ -199,7 +199,7 @@ export default function AgentGroupDetailPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase font-medium mb-1">Members</p>
           <p className="text-2xl font-bold text-slate-900">{group.members.length}</p>
@@ -369,7 +369,7 @@ export default function AgentGroupDetailPage() {
               The certificate will be automatically assigned to all {group.members.length} agent(s) in this group.
             </p>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Certificate</label>
                   <select

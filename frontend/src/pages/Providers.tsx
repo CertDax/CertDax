@@ -181,7 +181,7 @@ export default function Providers() {
         {showCaForm && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-4">
             <form onSubmit={handleAddCa} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Name
@@ -209,7 +209,7 @@ export default function Providers() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Contact email
@@ -236,7 +236,7 @@ export default function Providers() {
                   </label>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     EAB KID <span className="text-slate-400 font-normal">(optional)</span>
@@ -429,7 +429,7 @@ export default function Providers() {
         {showDnsForm && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-4">
             <form onSubmit={handleAddDns} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Name
@@ -507,7 +507,7 @@ export default function Providers() {
                       <option value="ovh-us">OVH US</option>
                     </select>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Application Key</label>
                       <input type="text" value={ovhAppKey} onChange={(e) => setOvhAppKey(e.target.value)}
@@ -530,7 +530,7 @@ export default function Providers() {
                 </>
               )}
               {dnsType === 'route53' && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Access Key ID</label>
                     <input type="text" value={r53AccessKey} onChange={(e) => setR53AccessKey(e.target.value)}

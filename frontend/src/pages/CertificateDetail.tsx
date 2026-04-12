@@ -413,7 +413,7 @@ export default function CertificateDetail() {
           <Server className="w-5 h-5" />
           Certificate details
         </h2>
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-slate-500">Challenge type:</span>
             <span className="ml-2 font-medium text-slate-900">{cert.challenge_type}</span>
