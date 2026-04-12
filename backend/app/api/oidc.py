@@ -1,4 +1,5 @@
 import logging
+import os
 import secrets
 
 import httpx
@@ -17,6 +18,8 @@ from app.utils.crypto import decrypt
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+_FORCE_HTTPS = os.getenv("FORCE_HTTPS", "true").lower() in ("1", "true", "yes")
+
 # In-memory state store (CSRF protection for OAuth flow)
 _pending_states: dict[str, bool] = {}
 
@@ -24,6 +27,8 @@ _pending_states: dict[str, bool] = {}
 def _get_base_url(request: Request) -> str:
     """Derive the base URL from the incoming request."""
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    if _FORCE_HTTPS:
+        scheme = "https"
     host = request.headers.get("x-forwarded-host", request.headers.get("host", ""))
     return f"{scheme}://{host}"
 
