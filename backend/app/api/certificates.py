@@ -3,7 +3,7 @@ import json
 import zipfile
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -871,10 +871,10 @@ def delete_certificate(
     return {"detail": "Certificate deleted"}
 
 
-@router.get("/{cert_id}/download/zip")
+@router.post("/{cert_id}/download/zip")
 def download_zip(
     cert_id: int,
-    password: str | None = Query(None, description="Password for private key encryption"),
+    password: str | None = Body(None, embed=True),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -914,11 +914,11 @@ def download_zip(
     )
 
 
-@router.get("/{cert_id}/download/pem/{file_type}")
+@router.post("/{cert_id}/download/pem/{file_type}")
 def download_pem(
     cert_id: int,
     file_type: str,
-    password: str | None = Query(None, description="Password for private key encryption"),
+    password: str | None = Body(None, embed=True),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -976,10 +976,10 @@ def download_pem(
     )
 
 
-@router.get("/{cert_id}/download/pfx")
+@router.post("/{cert_id}/download/pfx")
 def download_pfx(
     cert_id: int,
-    password: str | None = Query(None, description="Password for PFX encryption"),
+    password: str | None = Body(None, embed=True),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):

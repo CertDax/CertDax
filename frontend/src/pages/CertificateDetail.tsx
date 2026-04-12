@@ -155,10 +155,10 @@ export default function CertificateDetail() {
   };
 
   const downloadFile = (url: string) => {
-    const params = downloadPassword ? `?password=${encodeURIComponent(downloadPassword)}` : '';
+    const body = downloadPassword ? { password: downloadPassword } : {};
     const link = document.createElement('a');
-    // Use fetch to handle auth header
-    api.get(url + params, { responseType: 'blob' }).then((res) => {
+    // Use fetch to handle auth header, POST to avoid password in URL
+    api.post(url, body, { responseType: 'blob' }).then((res) => {
       const disposition = res.headers['content-disposition'] || '';
       const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
       const filename = filenameMatch ? filenameMatch[1] : 'download';
