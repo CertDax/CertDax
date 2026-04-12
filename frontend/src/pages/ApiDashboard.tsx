@@ -153,15 +153,23 @@ export default function ApiDashboard() {
       title: 'List self-signed certificates',
       method: 'GET',
       path: '/self-signed',
-      description: 'List all self-signed certificates in your group.',
+      description: 'List all self-signed certificates in your group. Use ?is_ca=true to list only CA certificates, or ?search=keyword to filter by common name.',
       curl: `curl -s -H "Authorization: Bearer YOUR_API_KEY" \\
   ${baseUrl}/self-signed | jq`,
+    },
+    {
+      title: 'Get self-signed certificate details',
+      method: 'GET',
+      path: '/self-signed/{id}',
+      description: 'Retrieve full details of a self-signed certificate including PEM data, CA signing info, and auto-renewal settings.',
+      curl: `curl -s -H "Authorization: Bearer YOUR_API_KEY" \\
+  ${baseUrl}/self-signed/1 | jq`,
     },
     {
       title: 'Create self-signed certificate',
       method: 'POST',
       path: '/self-signed',
-      description: 'Generate a new self-signed certificate. key_type must be "rsa" or "ec" (lowercase). For RSA, key_size can be 2048 or 4096. For EC, use 256 or 384.',
+      description: 'Generate a new self-signed certificate. key_type must be "rsa" or "ec". For RSA, key_size can be 2048 or 4096. For EC, use 256 or 384. Set auto_renew to enable automatic renewal.',
       curl: `curl -s -X POST \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -171,9 +179,99 @@ export default function ApiDashboard() {
     "organization": "My Company",
     "key_type": "rsa",
     "key_size": 4096,
-    "validity_days": 365
+    "validity_days": 365,
+    "auto_renew": true
   }' \\
   ${baseUrl}/self-signed | jq`,
+    },
+    {
+      title: 'Create a CA certificate',
+      method: 'POST',
+      path: '/self-signed',
+      description: 'Create a Certificate Authority. Set is_ca to true. You can then use this CA to sign other certificates by referencing its ID via the ca_id field.',
+      curl: `curl -s -X POST \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "common_name": "My Internal CA",
+    "organization": "My Company",
+    "key_type": "rsa",
+    "key_size": 4096,
+    "validity_days": 3650,
+    "is_ca": true
+  }' \\
+  ${baseUrl}/self-signed | jq`,
+    },
+    {
+      title: 'Create a CA-signed certificate',
+      method: 'POST',
+      path: '/self-signed',
+      description: 'Generate a certificate signed by an existing CA. Pass the CA certificate ID as ca_id. The certificate validity will be capped to not outlive the CA.',
+      curl: `curl -s -X POST \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "common_name": "app.internal.local",
+    "san_domains": ["api.internal.local"],
+    "key_type": "ec",
+    "key_size": 256,
+    "validity_days": 365,
+    "ca_id": 1
+  }' \\
+  ${baseUrl}/self-signed | jq`,
+    },
+    {
+      title: 'Renew a self-signed certificate',
+      method: 'POST',
+      path: '/self-signed/{id}/renew',
+      description: 'Regenerate a certificate with a new key pair. If originally signed by a CA, it will be re-signed by the same CA. Optionally override validity_days.',
+      curl: `curl -s -X POST \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  "${baseUrl}/self-signed/1/renew?validity_days=365" | jq`,
+    },
+    {
+      title: 'Delete a self-signed certificate',
+      method: 'DELETE',
+      path: '/self-signed/{id}',
+      description: 'Permanently delete a self-signed certificate. Use ?force=true to delete even if the certificate is assigned to agents.',
+      curl: `curl -s -X DELETE \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  ${baseUrl}/self-signed/1 | jq`,
+    },
+    {
+      title: 'Download as ZIP',
+      method: 'GET',
+      path: '/self-signed/{id}/download/zip',
+      description: 'Download the certificate, private key, and (if CA-signed) the CA certificate and full chain as a ZIP archive. Optionally encrypt the private key with ?password=secret.',
+      curl: `curl -s -H "Authorization: Bearer YOUR_API_KEY" \\
+  -o certificate.zip \\
+  ${baseUrl}/self-signed/1/download/zip`,
+    },
+    {
+      title: 'Download as PEM',
+      method: 'GET',
+      path: '/self-signed/{id}/download/pem/{type}',
+      description: 'Download a single certificate component. Type can be: certificate, privatekey, combined, chain (full chain, CA-signed only), or ca (CA cert only).',
+      curl: `curl -s -H "Authorization: Bearer YOUR_API_KEY" \\
+  -o cert.pem \\
+  ${baseUrl}/self-signed/1/download/pem/certificate`,
+    },
+    {
+      title: 'Download as PFX/PKCS#12',
+      method: 'GET',
+      path: '/self-signed/{id}/download/pfx',
+      description: 'Download the certificate and private key as a PFX/PKCS#12 bundle. Includes the CA chain if CA-signed. Optionally set a password with ?password=secret.',
+      curl: `curl -s -H "Authorization: Bearer YOUR_API_KEY" \\
+  -o certificate.pfx \\
+  "${baseUrl}/self-signed/1/download/pfx?password=secret"`,
+    },
+    {
+      title: 'Parsed X.509 details',
+      method: 'GET',
+      path: '/self-signed/{id}/parsed',
+      description: 'Returns the parsed X.509 certificate details including subject, issuer, validity, SANs, key usage, and extensions.',
+      curl: `curl -s -H "Authorization: Bearer YOUR_API_KEY" \\
+  ${baseUrl}/self-signed/1/parsed | jq`,
     },
     // ── Agents ──
     {
