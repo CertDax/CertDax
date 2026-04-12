@@ -173,21 +173,179 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
     return cert_pem, key_pem
 
 
+def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: str) -> tuple[str, str]:
+    """Generate a certificate signed by a CA and return (cert_pem, key_pem)."""
+    # Load CA certificate and key
+    ca_cert = x509.load_pem_x509_certificate(ca_cert_pem.encode())
+    ca_key = serialization.load_pem_private_key(ca_key_pem.encode(), password=None)
+
+    # Determine hash algorithm based on CA key type
+    if isinstance(ca_key, ec.EllipticCurvePrivateKey):
+        hash_alg = hashes.SHA256() if ca_key.key_size <= 256 else hashes.SHA384()
+    else:
+        hash_alg = hashes.SHA256()
+
+    # Generate private key for the new certificate
+    if req.key_type == "ec":
+        curve_map = {256: ec.SECP256R1(), 384: ec.SECP384R1()}
+        curve = curve_map.get(req.key_size, ec.SECP256R1())
+        private_key = ec.generate_private_key(curve)
+    else:
+        key_size = req.key_size if req.key_size in (2048, 4096) else 4096
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
+
+    # Build subject
+    name_attrs = [x509.NameAttribute(NameOID.COMMON_NAME, req.common_name)]
+    if req.organization:
+        name_attrs.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, req.organization))
+    if req.organizational_unit:
+        name_attrs.append(x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, req.organizational_unit))
+    if req.country:
+        name_attrs.append(x509.NameAttribute(NameOID.COUNTRY_NAME, req.country))
+    if req.state:
+        name_attrs.append(x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, req.state))
+    if req.locality:
+        name_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, req.locality))
+    if req.custom_oids:
+        for oid_entry in req.custom_oids:
+            oid_obj = x509.ObjectIdentifier(oid_entry.oid)
+            name_attrs.append(x509.NameAttribute(oid_obj, oid_entry.value))
+
+    subject = x509.Name(name_attrs)
+    now = datetime.now(timezone.utc)
+    not_after = now + timedelta(days=req.validity_days)
+
+    # Ensure certificate does not outlive the CA
+    if not_after > ca_cert.not_valid_after_utc:
+        not_after = ca_cert.not_valid_after_utc
+
+    builder = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(ca_cert.subject)  # issuer = CA subject
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(not_after)
+    )
+
+    # SANs
+    all_domains = [req.common_name]
+    if req.san_domains:
+        for d in req.san_domains:
+            d = d.strip()
+            if d and d not in all_domains:
+                all_domains.append(d)
+
+    san_list = [x509.DNSName(d) for d in all_domains]
+    builder = builder.add_extension(
+        x509.SubjectAlternativeName(san_list), critical=False
+    )
+
+    # Basic Constraints
+    builder = builder.add_extension(
+        x509.BasicConstraints(ca=req.is_ca, path_length=0 if req.is_ca else None),
+        critical=True,
+    )
+
+    # Key Usage
+    if req.is_ca:
+        builder = builder.add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_encipherment=False,
+                content_commitment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=True,
+                crl_sign=True,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+    else:
+        builder = builder.add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                key_encipherment=True,
+                content_commitment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        builder = builder.add_extension(
+            x509.ExtendedKeyUsage([
+                ExtendedKeyUsageOID.SERVER_AUTH,
+                ExtendedKeyUsageOID.CLIENT_AUTH,
+            ]),
+            critical=False,
+        )
+
+    # Custom EKU OIDs
+    if req.custom_oids:
+        eku_oids = [
+            e for e in req.custom_oids
+            if e.oid.startswith("1.3.6.1.5.5.7.3.")
+            or e.oid.startswith("1.3.6.1.4.1.")
+        ]
+        if eku_oids:
+            eku_list = [x509.ObjectIdentifier(e.oid) for e in eku_oids]
+            builder = builder.add_extension(
+                x509.ExtendedKeyUsage(eku_list), critical=False,
+            )
+
+    # Subject Key Identifier
+    builder = builder.add_extension(
+        x509.SubjectKeyIdentifier.from_public_key(private_key.public_key()),
+        critical=False,
+    )
+
+    # Authority Key Identifier (from CA's public key)
+    builder = builder.add_extension(
+        x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),
+        critical=False,
+    )
+
+    # Sign with the CA's private key
+    cert = builder.sign(ca_key, hash_alg)
+
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+    key_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+
+    return cert_pem, key_pem
+
+
 @router.get("", response_model=list[SelfSignedResponse])
 def list_self_signed(
     search: str | None = Query(None),
+    is_ca: bool | None = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     query = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed")))
     if search:
         query = query.filter(SelfSignedCertificate.common_name.ilike(f"%{search}%"))
+    if is_ca is not None:
+        query = query.filter(SelfSignedCertificate.is_ca == is_ca)
     certs = query.order_by(SelfSignedCertificate.created_at.desc()).all()
     result = []
     for cert in certs:
         resp = SelfSignedResponse.model_validate(cert)
         resp.created_by_username = _get_username(db, cert.created_by_user_id)
         resp.modified_by_username = _get_username(db, cert.modified_by_user_id)
+        if cert.signed_by_ca_id:
+            ca = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert.signed_by_ca_id).first()
+            resp.signed_by_ca_name = ca.common_name if ca else None
         result.append(resp)
     return result
 
@@ -204,6 +362,9 @@ def get_self_signed(
     resp = SelfSignedDetailResponse.model_validate(cert)
     resp.created_by_username = _get_username(db, cert.created_by_user_id)
     resp.modified_by_username = _get_username(db, cert.modified_by_user_id)
+    if cert.signed_by_ca_id:
+        ca = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert.signed_by_ca_id).first()
+        resp.signed_by_ca_name = ca.common_name if ca else None
     return resp
 
 
@@ -221,8 +382,25 @@ def create_self_signed(
     if req.validity_days < 1 or req.validity_days > 3650:
         raise HTTPException(status_code=400, detail="Validity must be between 1 and 3650 days")
 
+    # Determine if we're signing with a CA
+    ca_record = None
+    if req.ca_id:
+        ca_record = db.query(SelfSignedCertificate).filter(
+            SelfSignedCertificate.id == req.ca_id,
+            SelfSignedCertificate.is_ca == True,  # noqa: E712
+            SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed")),
+        ).first()
+        if not ca_record:
+            raise HTTPException(status_code=404, detail="CA certificate not found")
+        if not ca_record.certificate_pem or not ca_record.private_key_pem_encrypted:
+            raise HTTPException(status_code=400, detail="CA certificate has no key material")
+
     # Generate
-    cert_pem, key_pem = _generate_self_signed(req)
+    if ca_record:
+        ca_key_pem = decrypt(ca_record.private_key_pem_encrypted)
+        cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)
+    else:
+        cert_pem, key_pem = _generate_self_signed(req)
 
     now = datetime.now(timezone.utc)
     san_json = json.dumps(req.san_domains) if req.san_domains else None
@@ -239,6 +417,7 @@ def create_self_signed(
         key_size=req.key_size,
         validity_days=req.validity_days,
         is_ca=req.is_ca,
+        signed_by_ca_id=req.ca_id,
         auto_renew=req.auto_renew,
         renewal_threshold_days=req.renewal_threshold_days,
         custom_oids=json.dumps([o.model_dump() for o in req.custom_oids]) if req.custom_oids else None,
@@ -264,6 +443,8 @@ def create_self_signed(
 
     resp = SelfSignedResponse.model_validate(record)
     resp.created_by_username = user.display_name or user.username
+    if ca_record:
+        resp.signed_by_ca_name = ca_record.common_name
     return resp
 
 
@@ -382,9 +563,18 @@ def renew_self_signed(
         custom_oids=oid_list,
     )
 
-    cert_pem, key_pem = _generate_self_signed(req)
-
-    now = datetime.now(timezone.utc)
+    # If originally signed by a CA, re-sign with the same CA
+    if cert.signed_by_ca_id:
+        ca_record = db.query(SelfSignedCertificate).filter(
+            SelfSignedCertificate.id == cert.signed_by_ca_id,
+            SelfSignedCertificate.is_ca == True,  # noqa: E712
+        ).first()
+        if not ca_record or not ca_record.certificate_pem or not ca_record.private_key_pem_encrypted:
+            raise HTTPException(status_code=400, detail="CA certificate no longer available for re-signing")
+        ca_key_pem = decrypt(ca_record.private_key_pem_encrypted)
+        cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)
+    else:
+        cert_pem, key_pem = _generate_self_signed(req)
     cert.certificate_pem = cert_pem
     cert.private_key_pem_encrypted = encrypt(key_pem)
     cert.validity_days = effective_days
@@ -484,6 +674,12 @@ def download_self_signed_zip(
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(f"{safe_name}.crt", cert.certificate_pem)
         zf.writestr(f"{safe_name}.key", key_pem)
+        # Include CA chain if signed by a CA
+        if cert.signed_by_ca_id:
+            ca = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert.signed_by_ca_id).first()
+            if ca and ca.certificate_pem:
+                zf.writestr(f"{safe_name}-ca.crt", ca.certificate_pem)
+                zf.writestr(f"{safe_name}-fullchain.crt", cert.certificate_pem + ca.certificate_pem)
 
     buf.seek(0)
     return StreamingResponse(
@@ -525,6 +721,22 @@ def download_self_signed_pem(
         key_pem = decrypt(cert.private_key_pem_encrypted)
         content = key_pem + "\n" + cert.certificate_pem
         filename = f"{safe_name}-combined.pem"
+    elif file_type == "chain":
+        if not cert.signed_by_ca_id:
+            raise HTTPException(status_code=400, detail="Certificate is not CA-signed")
+        ca = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert.signed_by_ca_id).first()
+        if not ca or not ca.certificate_pem:
+            raise HTTPException(status_code=400, detail="CA certificate not available")
+        content = cert.certificate_pem + ca.certificate_pem
+        filename = f"{safe_name}-fullchain.crt"
+    elif file_type == "ca":
+        if not cert.signed_by_ca_id:
+            raise HTTPException(status_code=400, detail="Certificate is not CA-signed")
+        ca = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert.signed_by_ca_id).first()
+        if not ca or not ca.certificate_pem:
+            raise HTTPException(status_code=400, detail="CA certificate not available")
+        content = ca.certificate_pem
+        filename = f"{safe_name}-ca.crt"
     else:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
@@ -552,12 +764,19 @@ def download_self_signed_pfx(
     key_obj = serialization.load_pem_private_key(key_pem.encode(), password=None)
     cert_obj = x509.load_pem_x509_certificate(cert.certificate_pem.encode())
 
+    # Include CA chain if signed by a CA
+    ca_certs = None
+    if cert.signed_by_ca_id:
+        ca = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == cert.signed_by_ca_id).first()
+        if ca and ca.certificate_pem:
+            ca_certs = [x509.load_pem_x509_certificate(ca.certificate_pem.encode())]
+
     pfx_password = password.encode() if password else None
     pfx_data = pkcs12.serialize_key_and_certificates(
         name=cert.common_name.encode(),
         key=key_obj,
         cert=cert_obj,
-        cas=None,
+        cas=ca_certs,
         encryption_algorithm=(
             serialization.BestAvailableEncryption(pfx_password)
             if pfx_password

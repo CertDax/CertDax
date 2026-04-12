@@ -23,6 +23,9 @@ class SelfSignedCertificate(Base):
     key_size: Mapped[int] = mapped_column(Integer, default=4096)  # RSA bits or EC curve size
     validity_days: Mapped[int] = mapped_column(Integer, default=365)
     is_ca: Mapped[bool] = mapped_column(Boolean, default=False)
+    signed_by_ca_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("self_signed_certificates.id"), nullable=True
+    )
     auto_renew: Mapped[bool] = mapped_column(Boolean, default=False)
     renewal_threshold_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     custom_oids: Mapped[str | None] = mapped_column(Text, nullable=True)

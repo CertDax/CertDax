@@ -173,7 +173,7 @@ def _auto_renew_selfsigned(db, cert):
         oid_list = [OidEntry(**o) for o in json.loads(cert.custom_oids)] if cert.custom_oids else None
 
         # Import locally to avoid circular imports
-        from app.api.selfsigned import _generate_self_signed, _create_pending_deployments_self_signed
+        from app.api.selfsigned import _generate_self_signed, _generate_ca_signed, _create_pending_deployments_self_signed
 
         req = SelfSignedRequest(
             common_name=cert.common_name,
@@ -190,7 +190,21 @@ def _auto_renew_selfsigned(db, cert):
             custom_oids=oid_list,
         )
 
-        cert_pem, key_pem = _generate_self_signed(req)
+        # If originally signed by a CA, re-sign with the same CA
+        if cert.signed_by_ca_id:
+            from app.utils.crypto import decrypt
+            ca_record = db.query(SelfSignedCertificate).filter(
+                SelfSignedCertificate.id == cert.signed_by_ca_id,
+                SelfSignedCertificate.is_ca == True,  # noqa: E712
+            ).first()
+            if ca_record and ca_record.certificate_pem and ca_record.private_key_pem_encrypted:
+                ca_key_pem = decrypt(ca_record.private_key_pem_encrypted)
+                cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)
+            else:
+                logger.warning("CA %d no longer available for cert %d, skipping", cert.signed_by_ca_id, cert.id)
+                return
+        else:
+            cert_pem, key_pem = _generate_self_signed(req)
 
         now = datetime.now(timezone.utc)
         cert.certificate_pem = cert_pem

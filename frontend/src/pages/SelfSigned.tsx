@@ -25,11 +25,12 @@ export default function SelfSigned() {
   const [searchParams] = useSearchParams();
   const agentGroupParam = searchParams.get('agent_group');
   const agentParam = searchParams.get('agent');
+  const caParam = searchParams.get('ca');
   const [certs, setCerts] = useState<SelfSignedCertificate[]>([]);
   const [agentTarget, setAgentTarget] = useState<DeploymentTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(!!agentGroupParam || !!agentParam);
+  const [showForm, setShowForm] = useState(!!agentGroupParam || !!agentParam || !!caParam);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
   const [deleteError, setDeleteError] = useState<{ id: number; name: string; agents: string[]; deployment_count: number } | null>(null);
@@ -38,6 +39,7 @@ export default function SelfSigned() {
   const [deployFormat, setDeployFormat] = useState('crt');
   const [customOids, setCustomOids] = useState<OidEntry[]>([]);
   const [showOids, setShowOids] = useState(false);
+  const [availableCAs, setAvailableCAs] = useState<SelfSignedCertificate[]>([]);
 
   // Form state
   const [form, setForm] = useState({
@@ -52,6 +54,7 @@ export default function SelfSigned() {
     key_size: 4096,
     validity_days: 365,
     is_ca: false,
+    ca_id: caParam || '',
     auto_renew: false,
     renewal_threshold_days: '',
   });
@@ -70,6 +73,7 @@ export default function SelfSigned() {
 
   useEffect(() => {
     api.get('/agent-groups').then((res) => setAgentGroups(res.data)).catch(() => {});
+    api.get('/self-signed?is_ca=true').then((res) => setAvailableCAs(res.data)).catch(() => {});
     if (agentParam) {
       api.get(`/agents/${agentParam}`).then(({ data }) => setAgentTarget(data)).catch(() => {});
     }
@@ -88,6 +92,9 @@ export default function SelfSigned() {
         is_ca: form.is_ca,
         auto_renew: form.auto_renew,
       };
+      if (form.ca_id) {
+        payload.ca_id = parseInt(form.ca_id as string);
+      }
       if (form.auto_renew && form.renewal_threshold_days) {
         payload.renewal_threshold_days = parseInt(form.renewal_threshold_days as string);
       }
@@ -147,6 +154,7 @@ export default function SelfSigned() {
         key_size: 4096,
         validity_days: 365,
         is_ca: false,
+        ca_id: '',
         auto_renew: false,
         renewal_threshold_days: '',
       });
@@ -393,13 +401,35 @@ export default function SelfSigned() {
               </div>
             </div>
 
+            {/* Sign with CA */}
+            {availableCAs.length > 0 && !form.is_ca && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Sign with CA (optional)
+                </label>
+                <select
+                  value={form.ca_id}
+                  onChange={(e) => setForm({ ...form, ca_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                >
+                  <option value="">Self-signed (no CA)</option>
+                  {availableCAs.map((ca) => (
+                    <option key={ca.id} value={ca.id}>
+                      {ca.common_name}{ca.organization ? ` — ${ca.organization}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1">Select a CA to sign this certificate, or leave empty for self-signed</p>
+              </div>
+            )}
+
             {/* CA toggle */}
             <div className="flex items-center gap-3">
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.is_ca}
-                  onChange={(e) => setForm({ ...form, is_ca: e.target.checked })}
+                  onChange={(e) => setForm({ ...form, is_ca: e.target.checked, ca_id: e.target.checked ? '' : form.ca_id })}
                   className="sr-only peer"
                 />
                 <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
@@ -679,6 +709,11 @@ export default function SelfSigned() {
                           {cert.is_ca && (
                             <span className="ml-2 px-1.5 py-0.5 bg-amber-200 text-purple-700 rounded text-xs font-medium">
                               CA
+                            </span>
+                          )}
+                          {cert.signed_by_ca_name && (
+                            <span className="ml-2 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                              Signed by {cert.signed_by_ca_name}
                             </span>
                           )}
                         </span>

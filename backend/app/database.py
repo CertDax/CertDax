@@ -250,6 +250,9 @@ def _migrate_db():
         if "renewal_threshold_days" not in existing_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE self_signed_certificates ADD COLUMN renewal_threshold_days INTEGER"))
+        if "signed_by_ca_id" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE self_signed_certificates ADD COLUMN signed_by_ca_id INTEGER REFERENCES self_signed_certificates(id)"))
 
 
 def init_db():

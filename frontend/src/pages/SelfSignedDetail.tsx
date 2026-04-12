@@ -26,7 +26,7 @@ import {
   Tag,
 } from 'lucide-react';
 import api from '../services/api';
-import type { SelfSignedDetail as SelfSignedDetailType, OidEntry } from '../types';
+import type { SelfSignedDetail as SelfSignedDetailType, SelfSignedCertificate, OidEntry } from '../types';
 
 export default function SelfSignedDetail() {
   const { id } = useParams();
@@ -42,6 +42,7 @@ export default function SelfSignedDetail() {
   const [showRenewModal, setShowRenewModal] = useState(false);
   const [renewDays, setRenewDays] = useState(365);
   const [deleteError, setDeleteError] = useState<{ agents: string[]; deployment_count: number } | null>(null);
+  const [signedCerts, setSignedCerts] = useState<SelfSignedCertificate[]>([]);
 
   const fetchCert = () => {
     api.get(`/self-signed/${id}`).then((res) => {
@@ -66,6 +67,14 @@ export default function SelfSignedDetail() {
       fetchParsedDetails();
     }
   }, [cert?.certificate_pem]);
+
+  useEffect(() => {
+    if (cert?.is_ca) {
+      api.get('/self-signed').then((res) => {
+        setSignedCerts(res.data.filter((c: SelfSignedCertificate) => c.signed_by_ca_id === cert.id));
+      }).catch(() => {});
+    }
+  }, [cert?.is_ca, cert?.id]);
 
   const copyToClipboard = (text: string, label: string) => {
     if (navigator.clipboard) {
@@ -182,6 +191,15 @@ export default function SelfSignedDetail() {
             </p>
           )}
         </div>
+        {cert.is_ca && (
+          <button
+            onClick={() => navigate(`/self-signed?ca=${cert.id}`)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+          >
+            <FileLock2 className="w-4 h-4" />
+            Sign certificate
+          </button>
+        )}
         <button
           onClick={() => { setRenewDays(cert.validity_days); setShowRenewModal(true); }}
           className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
@@ -251,6 +269,14 @@ export default function SelfSignedDetail() {
           <p className="text-lg font-semibold text-slate-900">
             {cert.is_ca ? 'CA Certificate' : 'Server Certificate'}
           </p>
+          {cert.signed_by_ca_name && (
+            <Link
+              to={`/self-signed/${cert.signed_by_ca_id}`}
+              className="text-sm text-blue-600 hover:text-blue-800 mt-1 inline-block"
+            >
+              Signed by {cert.signed_by_ca_name}
+            </Link>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
@@ -371,6 +397,48 @@ export default function SelfSignedDetail() {
         ) : null;
       })()}
 
+      {/* Signed Certificates (for CA certs) */}
+      {cert.is_ca && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <FileLock2 className="w-5 h-5" />
+              Signed Certificates
+            </h2>
+            <button
+              onClick={() => navigate(`/self-signed?ca=${cert.id}`)}
+              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              + Sign new certificate
+            </button>
+          </div>
+          {signedCerts.length === 0 ? (
+            <p className="text-sm text-slate-400">No certificates have been signed with this CA yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {signedCerts.map((sc) => (
+                <Link
+                  key={sc.id}
+                  to={`/self-signed/${sc.id}`}
+                  className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <FileLock2 className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm font-medium text-slate-900">{sc.common_name}</span>
+                    {sc.organization && (
+                      <span className="text-xs text-slate-400">{sc.organization}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-500">
+                    {sc.expires_at ? `Expires ${format(new Date(sc.expires_at), 'd MMM yyyy')}` : ''}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Download Section */}
       {cert.certificate_pem && (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
@@ -470,6 +538,32 @@ export default function SelfSignedDetail() {
                 <p className="text-xs text-indigo-700">Windows Server / IIS</p>
               </div>
             </button>
+
+            {cert.signed_by_ca_id && (
+              <>
+                <button
+                  onClick={() => downloadFile(`/self-signed/${id}/download/pem/chain`)}
+                  className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors text-left"
+                >
+                  <ShieldCheck className="w-8 h-8 text-emerald-600 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-emerald-900 text-sm">Full Chain</p>
+                    <p className="text-xs text-emerald-700">Certificate + CA certificate</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => downloadFile(`/self-signed/${id}/download/pem/ca`)}
+                  className="flex items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors text-left"
+                >
+                  <Building2 className="w-8 h-8 text-purple-600 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-purple-900 text-sm">CA Certificate</p>
+                    <p className="text-xs text-purple-700">Issuing CA only</p>
+                  </div>
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

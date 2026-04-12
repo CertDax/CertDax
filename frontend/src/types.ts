@@ -168,6 +168,8 @@ export interface SelfSignedCertificate {
   key_size: number;
   validity_days: number;
   is_ca: boolean;
+  signed_by_ca_id: number | null;
+  signed_by_ca_name: string | null;
   auto_renew: boolean;
   renewal_threshold_days: number | null;
   custom_oids: string | null;
