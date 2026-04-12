@@ -45,7 +45,7 @@ cp .env.example .env
 
 # 2. Generate required secrets
 python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(64))"
-python -c "from cryptography.fernet import Fernet; print('ENCRYPTION_KEY=' + Fernet.generate_key().decode())"
+python -c "import base64, os; print('ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
 python -c "import secrets; print('DB_PASSWORD=' + secrets.token_urlsafe(32))"
 
 # 3. Edit .env with the generated values and your domain
