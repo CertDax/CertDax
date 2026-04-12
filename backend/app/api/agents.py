@@ -623,12 +623,12 @@ def get_install_script(
     if _settings.API_BASE_URL:
         api_url = _settings.API_BASE_URL.rstrip("/")
     else:
-        api_url = str(request.base_url).rstrip("/")
         forwarded_proto = request.headers.get("x-forwarded-proto")
-        forwarded_host = request.headers.get("x-forwarded-host")
-        if forwarded_host:
-            proto = forwarded_proto or "https"
-            api_url = f"{proto}://{forwarded_host}"
+        forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+        if forwarded_host and forwarded_proto:
+            api_url = f"{forwarded_proto}://{forwarded_host}"
+        else:
+            api_url = str(request.base_url).rstrip("/")
 
     script = INSTALL_SCRIPT_TEMPLATE.format(
         agent_name=target.name,
