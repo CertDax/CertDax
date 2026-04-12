@@ -671,8 +671,8 @@ function ParsedCertBlock({
   title,
   data,
   defaultOpen,
-  pem,
-  copied,
+  pem: _pem,
+  copied: _copied,
   onCopy,
 }: {
   title: string;
