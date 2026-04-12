@@ -549,13 +549,17 @@ def download_self_signed_pfx(
     key_obj = serialization.load_pem_private_key(key_pem.encode(), password=None)
     cert_obj = x509.load_pem_x509_certificate(cert.certificate_pem.encode())
 
-    pfx_password = password.encode() if password else b""
+    pfx_password = password.encode() if password else None
     pfx_data = pkcs12.serialize_key_and_certificates(
         name=cert.common_name.encode(),
         key=key_obj,
         cert=cert_obj,
         cas=None,
-        encryption_algorithm=serialization.BestAvailableEncryption(pfx_password),
+        encryption_algorithm=(
+            serialization.BestAvailableEncryption(pfx_password)
+            if pfx_password
+            else serialization.NoEncryption()
+        ),
     )
 
     safe_name = cert.common_name.replace("*", "wildcard").replace("/", "_").replace(" ", "_")
