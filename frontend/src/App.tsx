@@ -52,7 +52,7 @@ export default function App() {
           <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/email-templates" element={<EmailTemplates />} />
-          <Route path="/api" element={<ApiDashboard />} />
+          <Route path="/api-keys" element={<ApiDashboard />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>

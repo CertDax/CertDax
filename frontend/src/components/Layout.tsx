@@ -27,7 +27,7 @@ const navItems = [
   { to: '/agent-groups', icon: FolderTree, label: 'Agent Groups' },
   { to: '/deployments', icon: Upload, label: 'Deployments' },
   { to: '/self-signed', icon: FileLock2, label: 'Self-Signed' },
-  { to: '/api', icon: Key, label: 'API' },
+  { to: '/api-keys', icon: Key, label: 'API' },
 ];
 
 export default function Layout() {
