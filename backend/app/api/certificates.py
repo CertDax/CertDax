@@ -686,6 +686,24 @@ def request_certificate(
     if not domains:
         raise HTTPException(status_code=400, detail="At least one domain required")
 
+    # Prevent duplicate: check if an active certificate with the same common name
+    # already exists for this CA within the user's group
+    existing = (
+        db.query(Certificate)
+        .filter(
+            Certificate.common_name == domains[0],
+            Certificate.ca_id == req.ca_id,
+            Certificate.group_id == user.group_id,
+            Certificate.status.notin_(["failed", "revoked"]),
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A certificate for '{domains[0]}' already exists (status: {existing.status})",
+        )
+
     san_domains = json.dumps(domains) if len(domains) > 1 else None
 
     custom_oids_json = None
