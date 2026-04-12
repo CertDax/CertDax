@@ -115,7 +115,7 @@ export default function Profile() {
         {/* Profile picture */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Profile picture</h2>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="relative">
               {profileImage ? (
                 <img

@@ -278,7 +278,7 @@ export default function Settings() {
 
       <form onSubmit={handleSave}>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                 <Mail className="w-5 h-5 text-blue-600" />
@@ -496,7 +496,7 @@ export default function Settings() {
       {/* OIDC / SSO Settings */}
       <form onSubmit={handleOidcSave} className="mt-8">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
                 <KeyRound className="w-5 h-5 text-rose-600" />

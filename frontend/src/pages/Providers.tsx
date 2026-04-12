@@ -164,7 +164,7 @@ export default function Providers() {
 
       {/* Certificate Authorities */}
       <div className="mb-10">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <Server className="w-5 h-5" />
             Certificate Authorities
@@ -281,8 +281,8 @@ export default function Providers() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[600px]">
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">
@@ -412,7 +412,7 @@ export default function Providers() {
 
       {/* DNS Providers */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <Globe className="w-5 h-5" />
             DNS Providers
@@ -603,8 +603,8 @@ export default function Providers() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <table className="w-full">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[500px]">
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">

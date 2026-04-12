@@ -205,7 +205,7 @@ export default function SelfSigned() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
             <FileLock2 className="w-7 h-7 text-amber-500" />
@@ -619,7 +619,7 @@ export default function SelfSigned() {
           <p className="text-sm text-slate-400">Click "New certificate" to create one</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
           {deleteError && (
             <div className="bg-amber-50 border-b border-amber-200 p-6">
               <p className="font-medium text-amber-900 mb-2">
@@ -651,11 +651,7 @@ export default function SelfSigned() {
               </div>
             </div>
           )}
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Certificate</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created by</th>
+          <table className="w-full min-w-[700px]">
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Modified by</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Validity</th>

@@ -448,7 +448,7 @@ export default function ApiDashboard() {
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="text"
                 value={newKeyName}
@@ -488,7 +488,7 @@ export default function ApiDashboard() {
             ) : (
               <div className="divide-y divide-slate-100">
                 {keys.map((k) => (
-                  <div key={k.id} className="px-6 py-4 flex items-center justify-between">
+                  <div key={k.id} className="px-6 py-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="w-9 h-9 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
                         <Key className="w-4 h-4 text-slate-500" />

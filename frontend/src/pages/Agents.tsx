@@ -118,9 +118,9 @@ export default function Agents() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
         <h1 className="text-2xl font-bold text-slate-900">Agents</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowSetup(!showSetup)}
             className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
@@ -401,7 +401,7 @@ sudo systemctl enable --now certdax-agent`}</pre>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
           <h3 className="font-semibold text-slate-900 mb-4">Register new agent</h3>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Name
@@ -429,7 +429,7 @@ sudo systemctl enable --now certdax-agent`}</pre>
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Deploy path
@@ -454,7 +454,7 @@ sudo systemctl enable --now certdax-agent`}</pre>
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Pre-deploy script <span className="text-slate-400 font-normal">(optional)</span>
@@ -500,8 +500,8 @@ sudo systemctl enable --now certdax-agent`}</pre>
       )}
 
       {/* Agent list */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+        <table className="w-full min-w-[600px]">
           <thead className="bg-slate-50">
             <tr>
               <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">

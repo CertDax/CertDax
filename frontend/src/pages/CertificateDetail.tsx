@@ -189,18 +189,18 @@ export default function CertificateDetail() {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex flex-wrap items-center gap-4 mb-8">
         <Link
           to="/certificates"
           className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-slate-600" />
         </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-slate-900">{cert.common_name}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold text-slate-900 truncate">{cert.common_name}</h1>
           <p className="text-slate-500 mt-1">{cert.ca_name || 'Unknown CA'}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={handleRenew}
             disabled={renewing || isProcessing || cert.status === 'revoked'}

@@ -41,7 +41,7 @@ export default function Certificates() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Certificates</h1>
           <p className="text-slate-500 mt-1">
@@ -71,7 +71,7 @@ export default function Certificates() {
             />
           </div>
         </form>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Filter className="w-5 h-5 text-slate-400" />
           {statusFilters.map((f) => (
             <button

@@ -153,14 +153,14 @@ export default function SelfSignedDetail() {
 
   return (
     <div>
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex flex-wrap items-center gap-4 mb-8">
         <Link
           to="/self-signed"
           className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-slate-600" />
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
             {cert.is_ca ? (
               <Building2 className="w-6 h-6 text-amber-600" />
@@ -339,7 +339,7 @@ export default function SelfSignedDetail() {
             <Building2 className="w-5 h-5" />
             Subject
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
             {cert.organization && (
               <div>
                 <span className="text-slate-500">Organization (O):</span>

@@ -63,7 +63,7 @@ export default function AgentGroups() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
           <FolderTree className="w-7 h-7 text-teal-500" />
           Agent Groups
@@ -147,7 +147,7 @@ export default function AgentGroups() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
         {groups.length === 0 ? (
           <div className="px-6 py-12 text-center text-slate-400">
             <FolderTree className="w-10 h-10 mx-auto mb-2 text-slate-300" />
@@ -155,7 +155,7 @@ export default function AgentGroups() {
             <p className="text-sm mt-1">Create a group to bundle agents</p>
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full min-w-[500px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">Name</th>
