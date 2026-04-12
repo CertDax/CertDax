@@ -402,29 +402,29 @@ export default function AgentDetailPage() {
 
       {/* Assigned certificates */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <ShieldCheck className="w-5 h-5" />
             Assigned certificates
           </h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link
               to={`/certificates/new?agent=${id}`}
-              className="flex items-center gap-2 bg-emerald-500 text-white px-3 py-2 rounded-lg hover:bg-emerald-600 transition-colors text-sm font-medium"
+              className="flex items-center gap-1.5 bg-emerald-500 text-white px-3 py-2 rounded-lg hover:bg-emerald-600 transition-colors text-xs sm:text-sm font-medium"
             >
               <ShieldCheck className="w-4 h-4" />
               New ACME certificate
             </Link>
             <Link
               to={`/self-signed?agent=${id}`}
-              className="flex items-center gap-2 bg-amber-500 text-white px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+              className="flex items-center gap-1.5 bg-amber-500 text-white px-3 py-2 rounded-lg hover:bg-amber-600 transition-colors text-xs sm:text-sm font-medium"
             >
               <FileLock2 className="w-4 h-4" />
               New self-signed certificate
             </Link>
             <button
               onClick={() => setShowAssignForm(!showAssignForm)}
-              className="flex items-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+              className="flex items-center gap-1.5 bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors text-xs sm:text-sm font-medium"
             >
               <Plus className="w-4 h-4" />
               Assign certificate
