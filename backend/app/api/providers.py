@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, visible_group_ids
 from app.database import get_db
+from app.models.ca_group_account import CaGroupAccount
 from app.models.certificate import CertificateAuthority
 from app.models.provider import DnsProvider
 from app.models.user import User
@@ -35,10 +36,30 @@ def list_cas(
         ),
         CertificateAuthority.is_active == True,
     ).order_by(CertificateAuthority.name).all()
+
+    # Load per-group overrides for global CAs
+    global_ca_ids = [ca.id for ca in cas if ca.group_id is None]
+    overrides: dict[int, CaGroupAccount] = {}
+    if global_ca_ids:
+        rows = db.query(CaGroupAccount).filter(
+            CaGroupAccount.ca_id.in_(global_ca_ids),
+            CaGroupAccount.group_id == user.group_id,
+        ).all()
+        overrides = {r.ca_id: r for r in rows}
+
     result = []
     for ca in cas:
         resp = CertificateAuthorityResponse.model_validate(ca)
-        resp.has_account = ca.account_url is not None
+        override = overrides.get(ca.id)
+        if ca.group_id is None and override:
+            resp.contact_email = override.contact_email
+            resp.has_account = override.account_url is not None
+        elif ca.group_id is None:
+            # Global CA with no group override yet — show blank
+            resp.contact_email = None
+            resp.has_account = False
+        else:
+            resp.has_account = ca.account_url is not None
         resp.has_eab = ca.eab_kid is not None
         result.append(resp)
     return result
@@ -96,19 +117,35 @@ def update_ca(
     if not ca:
         raise HTTPException(status_code=404, detail="CA not found")
 
-    ca.name = req.name
-    ca.directory_url = req.directory_url
-    ca.is_staging = req.is_staging
-    ca.contact_email = req.contact_email
-    if req.eab_kid:
-        ca.eab_kid = encrypt(req.eab_kid)
-    if req.eab_hmac_key:
-        ca.eab_hmac_key = encrypt(req.eab_hmac_key)
-    db.commit()
-    db.refresh(ca)
+    if ca.group_id is None:
+        # Global CA — save email to per-group override, don't modify the CA itself
+        override = db.query(CaGroupAccount).filter(
+            CaGroupAccount.ca_id == ca.id,
+            CaGroupAccount.group_id == user.group_id,
+        ).first()
+        if not override:
+            override = CaGroupAccount(ca_id=ca.id, group_id=user.group_id)
+            db.add(override)
+        override.contact_email = req.contact_email
+        db.commit()
+        db.refresh(ca)
+        resp = CertificateAuthorityResponse.model_validate(ca)
+        resp.contact_email = override.contact_email
+        resp.has_account = override.account_url is not None
+    else:
+        ca.name = req.name
+        ca.directory_url = req.directory_url
+        ca.is_staging = req.is_staging
+        ca.contact_email = req.contact_email
+        if req.eab_kid:
+            ca.eab_kid = encrypt(req.eab_kid)
+        if req.eab_hmac_key:
+            ca.eab_hmac_key = encrypt(req.eab_hmac_key)
+        db.commit()
+        db.refresh(ca)
+        resp = CertificateAuthorityResponse.model_validate(ca)
+        resp.has_account = ca.account_url is not None
 
-    resp = CertificateAuthorityResponse.model_validate(ca)
-    resp.has_account = ca.account_url is not None
     resp.has_eab = ca.eab_kid is not None
     return resp
 

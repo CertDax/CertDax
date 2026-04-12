@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, visible_group_ids
 from app.database import get_db
+from app.models.ca_group_account import CaGroupAccount
 from app.models.certificate import Certificate, CertificateAuthority
 from app.models.deployment import CertificateDeployment, DeploymentTarget
 from app.models.user import User
@@ -74,7 +75,25 @@ async def dry_run_certificate(
             "contact_email": ca.contact_email,
             "eab_kid": ca.eab_kid,
             "eab_hmac_key": ca.eab_hmac_key,
+            "is_global": ca.group_id is None,
+            "group_id": user.group_id,
         }
+        # For global CAs, overlay per-group account data
+        if ca.group_id is None:
+            override = db.query(CaGroupAccount).filter(
+                CaGroupAccount.ca_id == ca.id,
+                CaGroupAccount.group_id == user.group_id,
+            ).first()
+            if override:
+                ca_snapshot["contact_email"] = override.contact_email
+                if override.account_key_pem:
+                    ca_snapshot["account_key_pem"] = override.account_key_pem
+                if override.account_url:
+                    ca_snapshot["account_url"] = override.account_url
+            else:
+                ca_snapshot["contact_email"] = None
+                ca_snapshot["account_key_pem"] = None
+                ca_snapshot["account_url"] = None
 
     dns_prov_snapshot = None
     if dns_prov:
@@ -201,15 +220,32 @@ async def dry_run_certificate(
                 from app.database import SessionLocal
                 persist_db = SessionLocal()
                 try:
-                    persist_ca = persist_db.query(CertificateAuthority).filter(
-                        CertificateAuthority.id == ca_snapshot["id"]
-                    ).first()
-                    if persist_ca:
-                        if not persist_ca.account_key_pem:
-                            persist_ca.account_key_pem = encrypt(serialize_private_key(account_key))
-                        persist_ca.account_url = account_url
+                    if ca_snapshot.get("is_global"):
+                        # Global CA — save to per-group override
+                        override = persist_db.query(CaGroupAccount).filter(
+                            CaGroupAccount.ca_id == ca_snapshot["id"],
+                            CaGroupAccount.group_id == ca_snapshot["group_id"],
+                        ).first()
+                        if not override:
+                            override = CaGroupAccount(
+                                ca_id=ca_snapshot["id"],
+                                group_id=ca_snapshot["group_id"],
+                            )
+                            persist_db.add(override)
+                        if not override.account_key_pem:
+                            override.account_key_pem = encrypt(serialize_private_key(account_key))
+                        override.account_url = account_url
                         persist_db.commit()
-                        yield make_event("Saving account", "New ACME account saved to database (reusable).")
+                    else:
+                        persist_ca = persist_db.query(CertificateAuthority).filter(
+                            CertificateAuthority.id == ca_snapshot["id"]
+                        ).first()
+                        if persist_ca:
+                            if not persist_ca.account_key_pem:
+                                persist_ca.account_key_pem = encrypt(serialize_private_key(account_key))
+                            persist_ca.account_url = account_url
+                            persist_db.commit()
+                    yield make_event("Saving account", "New ACME account saved to database (reusable).")
                 finally:
                     persist_db.close()
 

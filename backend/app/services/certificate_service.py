@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
+from app.models.ca_group_account import CaGroupAccount
 from app.models.certificate import Certificate, CertificateAuthority
 from app.models.deployment import AgentCertificate, CertificateDeployment
 from app.models.provider import DnsProvider
@@ -55,22 +56,41 @@ async def process_certificate_request(cert_id: int):
         if not ca:
             raise RuntimeError("Certificate Authority not found")
 
-        if ca.account_key_pem:
-            account_key = load_private_key(decrypt(ca.account_key_pem))
+        # For global CAs, load per-group account override
+        override = None
+        if ca.group_id is None and cert.group_id:
+            override = db.query(CaGroupAccount).filter(
+                CaGroupAccount.ca_id == ca.id,
+                CaGroupAccount.group_id == cert.group_id,
+            ).first()
+
+        acct_key_pem = (override.account_key_pem if override else None) if ca.group_id is None else ca.account_key_pem
+        acct_url = (override.account_url if override else None) if ca.group_id is None else ca.account_url
+        acct_email = (override.contact_email if override else None) if ca.group_id is None else ca.contact_email
+
+        if acct_key_pem:
+            account_key = load_private_key(decrypt(acct_key_pem))
         else:
             account_key = generate_ec_key()
-            ca.account_key_pem = encrypt(serialize_private_key(account_key))
+            # Save the new key
+            if ca.group_id is None:
+                if not override:
+                    override = CaGroupAccount(ca_id=ca.id, group_id=cert.group_id)
+                    db.add(override)
+                override.account_key_pem = encrypt(serialize_private_key(account_key))
+            else:
+                ca.account_key_pem = encrypt(serialize_private_key(account_key))
             db.commit()
 
         acme = AcmeClient(ca.directory_url)
         acme.account_key = account_key
 
         try:
-            if ca.account_url:
-                acme.account_url = ca.account_url
+            if acct_url:
+                acme.account_url = acct_url
                 await acme.find_account()
             else:
-                contact_email = ca.contact_email or settings.ACME_CONTACT_EMAIL
+                contact_email = acct_email or settings.ACME_CONTACT_EMAIL
                 if not contact_email:
                     raise ValueError(
                         "No contact email address configured. "
@@ -81,7 +101,13 @@ async def process_certificate_request(cert_id: int):
                     eab_kid=decrypt(ca.eab_kid) if ca.eab_kid else None,
                     eab_hmac_key=decrypt(ca.eab_hmac_key) if ca.eab_hmac_key else None,
                 )
-                ca.account_url = account_url
+                if ca.group_id is None:
+                    if not override:
+                        override = CaGroupAccount(ca_id=ca.id, group_id=cert.group_id)
+                        db.add(override)
+                    override.account_url = account_url
+                else:
+                    ca.account_url = account_url
                 db.commit()
 
             dns_provider_instance = None

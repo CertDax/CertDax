@@ -12,6 +12,7 @@ from app.models.email_template import EmailTemplate
 from app.models.agent_group import AgentGroup, AgentGroupMember
 from app.models.api_key import ApiKey
 from app.models.distributed_lock import DistributedLock
+from app.models.ca_group_account import CaGroupAccount
 
 __all__ = [
     "Group",
@@ -31,4 +32,5 @@ __all__ = [
     "AgentGroupMember",
     "ApiKey",
     "DistributedLock",
+    "CaGroupAccount",
 ]
