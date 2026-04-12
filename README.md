@@ -231,6 +231,88 @@ Create a service account with the `DNS Administrator` role and export the JSON k
 ```
 With manual validation, DNS records are shown in the server logs.
 
+## Reverse Proxy
+
+By default CertDax listens on port **80** (HTTP). Place a reverse proxy in front for SSL termination. The examples below assume CertDax runs on `127.0.0.1:80`.
+
+### Nginx
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name certdax.example.com;
+
+    ssl_certificate     /etc/ssl/certs/certdax.pem;
+    ssl_certificate_key /etc/ssl/private/certdax.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        client_max_body_size 10m;
+    }
+}
+
+server {
+    listen 80;
+    server_name certdax.example.com;
+    return 301 https://$host$request_uri;
+}
+```
+
+### Apache2
+
+Enable the required modules first:
+
+```bash
+sudo a2enmod proxy proxy_http ssl rewrite headers
+sudo systemctl restart apache2
+```
+
+```apache
+<VirtualHost *:443>
+    ServerName certdax.example.com
+
+    SSLEngine On
+    SSLCertificateFile    /etc/ssl/certs/certdax.pem
+    SSLCertificateKeyFile /etc/ssl/private/certdax.key
+
+    ProxyPreserveHost On
+    ProxyPass / http://127.0.0.1:80/
+    ProxyPassReverse / http://127.0.0.1:80/
+
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Port "443"
+</VirtualHost>
+
+<VirtualHost *:80>
+    ServerName certdax.example.com
+    RewriteEngine On
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]
+</VirtualHost>
+```
+
+### HAProxy
+
+```haproxy
+frontend https_in
+    bind *:443 ssl crt /etc/haproxy/certs/certdax.pem
+    bind *:80
+    http-request redirect scheme https unless { ssl_fc }
+
+    default_backend certdax
+
+backend certdax
+    option httpchk GET /health
+    http-request set-header X-Forwarded-Proto https if { ssl_fc }
+    server certdax 127.0.0.1:80 check
+```
+
+> **Note:** Set `CORS_ORIGINS` and `FRONTEND_URL` in your `.env` to the public URL (e.g. `https://certdax.example.com`).
+
 ## API Endpoints
 
 | Endpoint | Method | Description |
