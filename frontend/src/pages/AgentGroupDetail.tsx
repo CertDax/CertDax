@@ -143,14 +143,14 @@ export default function AgentGroupDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <Link
           to="/agent-groups"
           className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {!editing ? (
             <div>
               <div className="flex items-center gap-3">
@@ -167,19 +167,19 @@ export default function AgentGroupDetailPage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                className="text-2xl font-bold text-slate-900 border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                className="text-2xl font-bold text-slate-900 border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none min-w-0"
               />
               <input
                 type="text"
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="Description"
-                className="text-sm text-slate-500 border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                className="text-sm text-slate-500 border border-slate-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none min-w-0"
               />
               <button onClick={handleSave} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg">
                 <Check className="w-5 h-5" />
@@ -271,7 +271,7 @@ export default function AgentGroupDetailPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
           {group.members.length === 0 ? (
             <div className="px-6 py-8 text-center text-slate-400">
               <Monitor className="w-10 h-10 mx-auto mb-2 text-slate-300" />
@@ -279,7 +279,7 @@ export default function AgentGroupDetailPage() {
               <p className="text-sm mt-1">Add agents to deploy certificates to all members</p>
             </div>
           ) : (
-            <table className="w-full">
+            <table className="w-full min-w-[500px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">Agent</th>
@@ -369,7 +369,7 @@ export default function AgentGroupDetailPage() {
               The certificate will be automatically assigned to all {group.members.length} agent(s) in this group.
             </p>
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Certificate</label>
                   <select

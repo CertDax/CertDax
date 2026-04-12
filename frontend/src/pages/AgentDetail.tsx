@@ -185,14 +185,14 @@ export default function AgentDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
         <Link
           to="/agents"
           className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-900">{agent.name}</h1>
             <StatusBadge status={agent.status} />
@@ -435,7 +435,7 @@ export default function AgentDetailPage() {
         {showAssignForm && (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-4">
             <form onSubmit={handleAssign} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Certificate
@@ -514,7 +514,7 @@ export default function AgentDetailPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
           {agent.assigned_certificates.length === 0 ? (
             <div className="px-6 py-8 text-center text-slate-400">
               <ShieldCheck className="w-10 h-10 mx-auto mb-2 text-slate-300" />
@@ -524,7 +524,7 @@ export default function AgentDetailPage() {
               </p>
             </div>
           ) : (
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">Certificate</th>
