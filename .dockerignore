@@ -1,0 +1,13 @@
+# Backend excludes
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/.env
+backend/data/
+backend/*.db
+
+# Frontend (not needed for backend build)
+frontend/node_modules/
+
+# Git
+.git/
