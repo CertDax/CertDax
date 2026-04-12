@@ -192,14 +192,8 @@ export default function Layout() {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="lg:hidden flex items-center gap-2">
-            <div className="w-7 h-7 bg-emerald-500 rounded-md flex items-center justify-center">
-              <Lock className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-bold text-slate-900">CertDax</span>
-          </div>
           {currentUser && (
-            <div className="relative" ref={menuRef}>
+            <div className="relative ml-auto" ref={menuRef}>
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="flex items-center gap-3 hover:bg-slate-50 rounded-lg px-3 py-2 transition-colors"
