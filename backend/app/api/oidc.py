@@ -1,6 +1,9 @@
+import hashlib
+import hmac
 import logging
 import os
 import secrets
+import time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -9,6 +12,7 @@ from jose import jwt as jose_jwt
 from sqlalchemy.orm import Session
 
 from app.api.auth import create_token
+from app.config import settings
 from app.database import get_db
 from app.models.group import Group
 from app.models.oidc_settings import OidcSettings
@@ -20,8 +24,33 @@ logger = logging.getLogger(__name__)
 
 _FORCE_HTTPS = os.getenv("FORCE_HTTPS", "true").lower() in ("1", "true", "yes")
 
-# In-memory state store (CSRF protection for OAuth flow)
-_pending_states: dict[str, bool] = {}
+# State token validity window (10 minutes)
+_STATE_MAX_AGE = 600
+
+
+def _sign_state(nonce: str, timestamp: int) -> str:
+    """Create an HMAC-signed state token that is safe across multiple workers."""
+    payload = f"{nonce}:{timestamp}"
+    sig = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+
+def _verify_state(state: str) -> bool:
+    """Verify the HMAC signature and freshness of a state token."""
+    parts = state.split(":")
+    if len(parts) != 3:
+        return False
+    nonce, ts_str, sig = parts
+    try:
+        timestamp = int(ts_str)
+    except ValueError:
+        return False
+    if time.time() - timestamp > _STATE_MAX_AGE:
+        return False
+    expected = hmac.new(
+        settings.SECRET_KEY.encode(), f"{nonce}:{ts_str}".encode(), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(sig, expected)
 
 
 def _get_base_url(request: Request) -> str:
@@ -69,8 +98,7 @@ def oidc_login(request: Request, db: Session = Depends(get_db)):
     discovery = _discover(cfg.issuer_url)
     auth_endpoint = discovery["authorization_endpoint"]
 
-    state = secrets.token_urlsafe(32)
-    _pending_states[state] = True
+    state = _sign_state(secrets.token_urlsafe(16), int(time.time()))
 
     base_url = _get_base_url(request)
     redirect_uri = f"{base_url}/api/oidc/callback"
@@ -98,10 +126,9 @@ def oidc_callback(
     db: Session = Depends(get_db),
 ):
     """Handle the IdP callback: exchange code for tokens, create/update user, return JWT."""
-    # Verify state
-    if state not in _pending_states:
+    # Verify state (HMAC-signed, works across workers)
+    if not _verify_state(state):
         raise HTTPException(status_code=400, detail="Invalid state parameter")
-    del _pending_states[state]
 
     cfg = _get_oidc(db)
     discovery = _discover(cfg.issuer_url)
