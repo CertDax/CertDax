@@ -255,14 +255,19 @@ export default function SelfSignedDetail() {
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center gap-3 text-slate-500 mb-2">
-            <Calendar className="w-5 h-5" />
-            <span className="text-sm font-medium">Issued</span>
+            <RefreshCw className="w-5 h-5" />
+            <span className="text-sm font-medium">Auto-Renewal</span>
           </div>
           <p className="text-lg font-semibold text-slate-900">
-            {cert.issued_at
-              ? format(new Date(cert.issued_at), 'd MMMM yyyy')
-              : '-'}
+            {cert.auto_renew ? 'On' : 'Off'}
           </p>
+          {cert.auto_renew && (
+            <p className="text-sm text-slate-500 mt-1">
+              {cert.renewal_threshold_days
+                ? `${cert.renewal_threshold_days} days before expiry`
+                : 'System default (30 days)'}
+            </p>
+          )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">

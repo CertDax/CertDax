@@ -16,6 +16,8 @@ class SelfSignedRequest(BaseModel):
     key_size: int = 4096  # RSA: 2048/4096, EC: 256/384
     validity_days: int = 365
     is_ca: bool = False
+    auto_renew: bool = False
+    renewal_threshold_days: int | None = None
     custom_oids: list[OidEntry] | None = None
 
 
@@ -32,6 +34,8 @@ class SelfSignedResponse(BaseModel):
     key_size: int
     validity_days: int
     is_ca: bool
+    auto_renew: bool
+    renewal_threshold_days: int | None = None
     custom_oids: str | None = None
     issued_at: datetime | None = None
     expires_at: datetime | None = None

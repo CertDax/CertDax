@@ -424,6 +424,16 @@ export default function CertificateDetail() {
               {cert.auto_renew ? 'On' : 'Off'}
             </span>
           </div>
+          {cert.auto_renew && (
+            <div>
+              <span className="text-slate-500">Renewal threshold:</span>
+              <span className="ml-2 font-medium text-slate-900">
+                {cert.renewal_threshold_days
+                  ? `${cert.renewal_threshold_days} days before expiry`
+                  : 'System default (30 days)'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

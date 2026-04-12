@@ -239,6 +239,8 @@ def create_self_signed(
         key_size=req.key_size,
         validity_days=req.validity_days,
         is_ca=req.is_ca,
+        auto_renew=req.auto_renew,
+        renewal_threshold_days=req.renewal_threshold_days,
         custom_oids=json.dumps([o.model_dump() for o in req.custom_oids]) if req.custom_oids else None,
         certificate_pem=cert_pem,
         private_key_pem_encrypted=encrypt(key_pem),

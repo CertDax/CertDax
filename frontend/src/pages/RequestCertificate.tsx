@@ -24,6 +24,7 @@ export default function RequestCertificate() {
   const [challengeType, setChallengeType] = useState('dns-01');
   const [dnsProviderId, setDnsProviderId] = useState<number | ''>('');
   const [autoRenew, setAutoRenew] = useState(true);
+  const [renewalThresholdDays, setRenewalThresholdDays] = useState('');
   const [customOids, setCustomOids] = useState<OidEntry[]>([]);
   const [showOids, setShowOids] = useState(false);
   const [dryRun, setDryRun] = useState(false);
@@ -76,6 +77,7 @@ export default function RequestCertificate() {
       challenge_type: challengeType,
       dns_provider_id: challengeType === 'dns-01' ? dnsProviderId || null : null,
       auto_renew: autoRenew,
+      renewal_threshold_days: autoRenew && renewalThresholdDays ? parseInt(renewalThresholdDays) : null,
       custom_oids: validOids.length > 0 ? validOids : null,
       ...(agentTarget ? { target_id: agentTarget.id, deploy_format: deployFormat } : {}),
     };
@@ -460,7 +462,7 @@ export default function RequestCertificate() {
             </div>
 
             {/* Auto Renew */}
-            <div>
+            <div className="space-y-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -472,6 +474,23 @@ export default function RequestCertificate() {
                   Auto-renew
                 </span>
               </label>
+              {autoRenew && (
+                <div className="ml-6">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Renewal threshold (days before expiry)
+                  </label>
+                  <input
+                    type="number"
+                    value={renewalThresholdDays}
+                    onChange={(e) => setRenewalThresholdDays(e.target.value)}
+                    placeholder="30"
+                    min={1}
+                    max={365}
+                    className="w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Leave empty for system default (30 days)</p>
+                </div>
+              )}
             </div>
 
             {/* Dry Run */}

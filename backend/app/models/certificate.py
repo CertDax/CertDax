@@ -59,6 +59,7 @@ class Certificate(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
     auto_renew: Mapped[bool] = mapped_column(Boolean, default=True)
+    renewal_threshold_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_renewal_attempt: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

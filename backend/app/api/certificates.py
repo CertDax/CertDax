@@ -674,6 +674,7 @@ def request_certificate(
         dns_provider_id=req.dns_provider_id,
         challenge_type=req.challenge_type,
         auto_renew=req.auto_renew,
+        renewal_threshold_days=req.renewal_threshold_days,
         custom_oids=custom_oids_json,
         status="pending",
         group_id=user.group_id,

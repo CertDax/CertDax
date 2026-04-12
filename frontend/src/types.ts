@@ -10,6 +10,7 @@ export interface Certificate {
   issued_at: string | null;
   expires_at: string | null;
   auto_renew: boolean;
+  renewal_threshold_days: number | null;
   custom_oids: string | null;
   error_message: string | null;
   created_by_username: string | null;
@@ -167,6 +168,8 @@ export interface SelfSignedCertificate {
   key_size: number;
   validity_days: number;
   is_ca: boolean;
+  auto_renew: boolean;
+  renewal_threshold_days: number | null;
   custom_oids: string | null;
   issued_at: string | null;
   expires_at: string | null;

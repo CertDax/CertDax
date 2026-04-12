@@ -336,6 +336,16 @@ def notify_selfsigned_created(
     _send_notification(group_id, subject, body_html, resource_type="self_signed")
 
 
+def notify_selfsigned_expired(
+    group_id: int | None,
+    common_name: str,
+):
+    subject, body_html = _render_template("selfsigned_expired", {
+        "common_name": common_name,
+    })
+    _send_notification(group_id, subject, body_html, resource_type="self_signed")
+
+
 def notify_selfsigned_renewed(
     group_id: int | None,
     common_name: str,

@@ -15,6 +15,7 @@ import {
   Server,
   Tag,
   Minus,
+  RefreshCw,
 } from 'lucide-react';
 import api from '../services/api';
 import type { SelfSignedCertificate, AgentGroupInfo, DeploymentTarget, OidEntry } from '../types';
@@ -51,6 +52,8 @@ export default function SelfSigned() {
     key_size: 4096,
     validity_days: 365,
     is_ca: false,
+    auto_renew: false,
+    renewal_threshold_days: '',
   });
 
   const fetchCerts = () => {
@@ -83,7 +86,11 @@ export default function SelfSigned() {
         key_size: form.key_size,
         validity_days: form.validity_days,
         is_ca: form.is_ca,
+        auto_renew: form.auto_renew,
       };
+      if (form.auto_renew && form.renewal_threshold_days) {
+        payload.renewal_threshold_days = parseInt(form.renewal_threshold_days as string);
+      }
       if (form.san_domains.trim()) {
         payload.san_domains = form.san_domains.split(',').map((d: string) => d.trim()).filter(Boolean);
       }
@@ -140,6 +147,8 @@ export default function SelfSigned() {
         key_size: 4096,
         validity_days: 365,
         is_ca: false,
+        auto_renew: false,
+        renewal_threshold_days: '',
       });
       navigate(agentGroupParam ? `/agent-groups/${agentGroupParam}` : agentParam ? `/agents/${agentParam}` : `/self-signed/${res.data.id}`);
     } catch (err: any) {
@@ -397,6 +406,41 @@ export default function SelfSigned() {
               </label>
               <span className="text-sm font-medium text-slate-700">CA certificate</span>
               <span className="text-xs text-slate-400">(can sign other certificates)</span>
+            </div>
+
+            {/* Auto-Renew */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.auto_renew}
+                    onChange={(e) => setForm({ ...form, auto_renew: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+                <RefreshCw className="w-4 h-4 text-slate-500" />
+                <span className="text-sm font-medium text-slate-700">Auto-renew</span>
+                <span className="text-xs text-slate-400">(automatically renew before expiry)</span>
+              </div>
+              {form.auto_renew && (
+                <div className="ml-12">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Renewal threshold (days before expiry)
+                  </label>
+                  <input
+                    type="number"
+                    value={form.renewal_threshold_days}
+                    onChange={(e) => setForm({ ...form, renewal_threshold_days: e.target.value })}
+                    placeholder="30"
+                    min={1}
+                    max={365}
+                    className="w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Leave empty for system default (30 days)</p>
+                </div>
+              )}
             </div>
 
             {/* Custom OIDs */}

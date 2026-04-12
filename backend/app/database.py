@@ -235,6 +235,22 @@ def _migrate_db():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE app_settings ADD COLUMN timezone VARCHAR(100) DEFAULT 'UTC'"))
 
+    # --- Auto-renewal & threshold migration ---
+    if "certificates" in existing_tables:
+        existing_cols = {c["name"] for c in inspector.get_columns("certificates")}
+        if "renewal_threshold_days" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE certificates ADD COLUMN renewal_threshold_days INTEGER"))
+
+    if "self_signed_certificates" in existing_tables:
+        existing_cols = {c["name"] for c in inspector.get_columns("self_signed_certificates")}
+        if "auto_renew" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE self_signed_certificates ADD COLUMN auto_renew BOOLEAN DEFAULT FALSE"))
+        if "renewal_threshold_days" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE self_signed_certificates ADD COLUMN renewal_threshold_days INTEGER"))
+
 
 def init_db():
     import app.models  # noqa: F401

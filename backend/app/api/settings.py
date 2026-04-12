@@ -302,6 +302,7 @@ _TEMPLATE_VARIABLES: dict[str, list[str]] = {
     "certificate_deleted": ["common_name", "deleted_by", "deleted_at"],
     "selfsigned_created": ["common_name", "created_by", "created_at"],
     "selfsigned_renewed": ["common_name", "renewed_by", "renewed_at", "validity_days"],
+    "selfsigned_expired": ["common_name"],
     "selfsigned_deleted": ["common_name", "deleted_by", "deleted_at"],
 }
 
@@ -446,6 +447,16 @@ def _default_templates() -> dict[str, dict]:
                 '  <td style="padding: 8px 0; font-weight: 600;">{{renewed_by}}</td></tr>'
                 '  <tr><td style="padding: 8px 0; color: #64748b;">Renewed at</td>'
                 '  <td style="padding: 8px 0; font-weight: 600;">{{renewed_at}}</td></tr>'
+                '</table>'
+            ),
+        },
+        "selfsigned_expired": {
+            "subject": "Self-signed certificate expired: {{common_name}}",
+            "body_html": (
+                '<p style="color: #dc2626;">A self-signed certificate has expired:</p>'
+                '<table style="width: 100%; border-collapse: collapse;">'
+                '  <tr><td style="padding: 8px 0; color: #64748b;">Domain</td>'
+                '  <td style="padding: 8px 0; font-weight: 600;">{{common_name}}</td></tr>'
                 '</table>'
             ),
         },

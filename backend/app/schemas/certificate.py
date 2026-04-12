@@ -13,6 +13,7 @@ class CertificateRequest(BaseModel):
     dns_provider_id: int | None = None
     challenge_type: str = "dns-01"
     auto_renew: bool = True
+    renewal_threshold_days: int | None = None
     custom_oids: list[OidEntry] | None = None
     target_id: int | None = None
     deploy_format: str = "crt"
@@ -30,6 +31,7 @@ class CertificateResponse(BaseModel):
     issued_at: datetime | None = None
     expires_at: datetime | None = None
     auto_renew: bool
+    renewal_threshold_days: int | None = None
     custom_oids: str | None = None
     error_message: str | None = None
     created_by_username: str | None = None
