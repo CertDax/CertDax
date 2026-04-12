@@ -4,13 +4,13 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app/ ./app/
+COPY backend/app/ ./app/
 
-# Include agent binaries in image (if available)
-COPY --chown=root:root agent-dist/ ./agent-dist/
+# Include agent binaries in image
+COPY agent/dist/ ./agent-dist/
 
 RUN useradd --create-home --no-log-init appuser
 USER appuser

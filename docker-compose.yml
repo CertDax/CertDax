@@ -20,7 +20,9 @@ services:
         max-file: "3"
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     restart: unless-stopped
     expose:
       - "8000"
