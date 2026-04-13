@@ -1,0 +1,17 @@
+apiVersion: v2
+name: certdax-operator
+description: CertDax Kubernetes Operator - Sync certificates from CertDax to Kubernetes TLS secrets
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - certificates
+  - tls
+  - traefik
+  - ingress
+  - certdax
+home: https://certdax.com
+sources:
+  - https://github.com/certdax/kubernetes-operator
+maintainers:
+  - name: CertDax

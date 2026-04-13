@@ -1,0 +1,118 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: certdaxcertificates.certdax.com
+  labels:
+    {{- include "certdax-operator.labels" . | nindent 4 }}
+spec:
+  group: certdax.com
+  names:
+    kind: CertDaxCertificate
+    listKind: CertDaxCertificateList
+    plural: certdaxcertificates
+    singular: certdaxcertificate
+    shortNames:
+      - cdxcert
+      - cdx
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: CertDaxCertificate syncs a certificate from CertDax into a Kubernetes TLS secret.
+          properties:
+            spec:
+              type: object
+              required:
+                - certificateId
+                - secretName
+              properties:
+                certificateId:
+                  type: integer
+                  description: ID of the certificate in CertDax.
+                type:
+                  type: string
+                  description: "Certificate type: selfsigned or acme."
+                  enum:
+                    - selfsigned
+                    - acme
+                  default: selfsigned
+                secretName:
+                  type: string
+                  description: Name of the Kubernetes TLS secret to create/update.
+                secretNamespace:
+                  type: string
+                  description: Override namespace for the TLS secret (defaults to resource namespace).
+                syncInterval:
+                  type: string
+                  description: "How often to re-sync (e.g. 1h, 30m). Defaults to 1h."
+                  default: "1h"
+                includeCA:
+                  type: boolean
+                  description: Include CA certificate in the secret's ca.crt field.
+                  default: true
+                secretLabels:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Additional labels for the TLS secret.
+                secretAnnotations:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Additional annotations for the TLS secret.
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                secretName:
+                  type: string
+                commonName:
+                  type: string
+                expiresAt:
+                  type: string
+                lastSyncedAt:
+                  type: string
+                message:
+                  type: string
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.type
+        - name: Secret
+          type: string
+          jsonPath: .spec.secretName
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: CN
+          type: string
+          jsonPath: .status.commonName
+        - name: Expires
+          type: string
+          jsonPath: .status.expiresAt
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

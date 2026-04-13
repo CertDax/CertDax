@@ -1,0 +1,52 @@
+name: Release Helm Chart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "helm/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Package chart
+        run: |
+          helm package helm/certdax-operator -d .chart-packages
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Update repository index
+        run: |
+          cp .chart-packages/*.tgz gh-pages/
+          helm repo index gh-pages --url https://charts.certdax.com --merge gh-pages/index.yaml
+
+      - name: Push to gh-pages
+        run: |
+          cd gh-pages
+          git add .
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "Release chart $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push

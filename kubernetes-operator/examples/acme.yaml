@@ -1,0 +1,10 @@
+# Example: ACME (Let's Encrypt) certificate
+apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: production-cert
+spec:
+  certificateId: 15
+  type: acme
+  secretName: production-tls
+  syncInterval: "30m"

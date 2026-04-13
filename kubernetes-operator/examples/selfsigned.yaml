@@ -1,0 +1,15 @@
+# Example: Self-signed certificate for Traefik
+apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: webapp-cert
+spec:
+  # Certificate ID from CertDax (visible in the UI or API)
+  certificateId: 42
+  type: selfsigned
+  # The operator will create this TLS secret
+  secretName: webapp-tls
+  # Check for renewals every hour
+  syncInterval: "1h"
+  # Include CA cert if this was signed by a CertDax CA
+  includeCA: true

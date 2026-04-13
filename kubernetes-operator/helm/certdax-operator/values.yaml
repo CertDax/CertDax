@@ -1,0 +1,58 @@
+# CertDax Operator configuration
+replicaCount: 1
+
+image:
+  repository: ghcr.io/certdax/certdax-k8s-operator
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# CertDax API connection
+certdax:
+  # URL of the CertDax backend API (required)
+  apiUrl: ""
+  # API key for authentication (required)
+  # You can also reference an existing secret with existingSecret
+  apiKey: ""
+  # Use an existing secret instead of creating one
+  # The secret must contain a key named "api-key"
+  existingSecret: ""
+  # Default sync interval for all CertDaxCertificate resources
+  syncInterval: "1h"
+
+# Optionally restrict the operator to a single namespace
+# Leave empty to watch all namespaces
+watchNamespace: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  fsGroup: 65532
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
