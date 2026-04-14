@@ -197,7 +197,10 @@ export default function CertificateDetail() {
           <ArrowLeft className="w-5 h-5 text-slate-600" />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900 truncate">{cert.common_name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-slate-900 truncate">{cert.common_name}</h1>
+            <span className="text-sm text-slate-400 font-mono">ID: {cert.id}</span>
+          </div>
           <p className="text-slate-500 mt-1">{cert.ca_name || 'Unknown CA'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

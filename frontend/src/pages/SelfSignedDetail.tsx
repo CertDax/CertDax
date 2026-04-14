@@ -168,6 +168,7 @@ export default function SelfSignedDetail() {
               <FileLock2 className="w-6 h-6 text-amber-500" />
             )}
             {cert.common_name}
+            <span className="text-sm text-slate-400 font-mono font-normal">ID: {cert.id}</span>
           </h1>
           <p className="text-slate-500 mt-1">
             Self-Signed {cert.is_ca ? 'CA ' : ''}Certificate
