@@ -10,6 +10,7 @@ import (
 
 	networkingv1 "k8s.io/api/networking/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -17,6 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"k8s.io/client-go/discovery"
 
@@ -208,14 +211,33 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 	if watchNamespace != "" {
 		listOpts = append(listOpts, client.InNamespace(watchNamespace))
 	}
-	// Build a map of secret (ns/name) -> ingress names that reference it
+	// Build a map of secret (ns/name) -> ingress/ingressroute names that reference it
 	secretToIngresses := map[string][]string{}
+
+	// Standard Kubernetes Ingresses
 	var ingressList networkingv1.IngressList
 	if err := k8sClient.List(ctx, &ingressList); err == nil {
 		for _, ing := range ingressList.Items {
 			for _, tls := range ing.Spec.TLS {
 				key := ing.Namespace + "/" + tls.SecretName
 				secretToIngresses[key] = append(secretToIngresses[key], ing.Namespace+"/"+ing.Name)
+			}
+		}
+	}
+
+	// Traefik IngressRoutes
+	irGVK := schema.GroupVersionKind{Group: "traefik.io", Version: "v1alpha1", Kind: "IngressRoute"}
+	irList := &unstructured.UnstructuredList{}
+	irList.SetGroupVersionKind(irGVK)
+	if err := k8sClient.List(ctx, irList); err == nil {
+		for _, ir := range irList.Items {
+			tlsObj, found, _ := unstructured.NestedMap(ir.Object, "spec", "tls")
+			if !found {
+				continue
+			}
+			if secretName, ok := tlsObj["secretName"].(string); ok && secretName != "" {
+				key := ir.GetNamespace() + "/" + secretName
+				secretToIngresses[key] = append(secretToIngresses[key], ir.GetNamespace()+"/"+ir.GetName())
 			}
 		}
 	}
