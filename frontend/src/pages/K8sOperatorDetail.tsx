@@ -34,7 +34,8 @@ export default function K8sOperatorDetailPage() {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const prevLogCountRef = useRef(0);
 
   const fetchOperator = async () => {
     try {
@@ -53,9 +54,11 @@ export default function K8sOperatorDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (autoScroll && logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const newCount = operator?.recent_logs?.length || 0;
+    if (autoScroll && logContainerRef.current && newCount !== prevLogCountRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
+    prevLogCountRef.current = newCount;
   }, [operator?.recent_logs, autoScroll]);
 
   const handleDelete = async () => {
@@ -333,7 +336,7 @@ export default function K8sOperatorDetailPage() {
             </button>
           </div>
         </div>
-        <div className="overflow-auto max-h-96 p-4 font-mono text-xs leading-5">
+        <div ref={logContainerRef} className="overflow-auto max-h-96 p-4 font-mono text-xs leading-5">
           {operator.recent_logs && operator.recent_logs.length > 0 ? (
             operator.recent_logs.map((line, i) => {
               const isError = /\bERROR\b/i.test(line);
@@ -358,7 +361,6 @@ export default function K8sOperatorDetailPage() {
               No logs available yet. Logs appear after the first heartbeat.
             </div>
           )}
-          <div ref={logEndRef} />
         </div>
       </div>
 
