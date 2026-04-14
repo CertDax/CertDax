@@ -218,6 +218,7 @@ export interface K8sManagedCert {
   expires_at: string | null;
   last_synced_at: string | null;
   message: string | null;
+  ingresses: string[] | null;
 }
 
 export interface K8sOperator {

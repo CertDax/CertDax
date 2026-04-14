@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	networkingv1 "k8s.io/api/networking/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -207,6 +208,18 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 	if watchNamespace != "" {
 		listOpts = append(listOpts, client.InNamespace(watchNamespace))
 	}
+	// Build a map of secret (ns/name) -> ingress names that reference it
+	secretToIngresses := map[string][]string{}
+	var ingressList networkingv1.IngressList
+	if err := k8sClient.List(ctx, &ingressList); err == nil {
+		for _, ing := range ingressList.Items {
+			for _, tls := range ing.Spec.TLS {
+				key := ing.Namespace + "/" + tls.SecretName
+				secretToIngresses[key] = append(secretToIngresses[key], ing.Namespace+"/"+ing.Name)
+			}
+		}
+	}
+
 	managed, ready, failed := 0, 0, 0
 	var certs []certdax.ManagedCert
 	if err := k8sClient.List(ctx, &certList, listOpts...); err == nil {
@@ -231,6 +244,7 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 				ExpiresAt:     c.Status.ExpiresAt,
 				LastSyncedAt:  c.Status.LastSyncedAt,
 				Message:       c.Status.Message,
+				Ingresses:     secretToIngresses[ns+"/"+c.Spec.SecretName],
 			})
 		}
 	}

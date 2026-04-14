@@ -77,15 +77,16 @@ func (c *Client) FetchCertificate(certType string, certID int) (*CertificateResp
 
 // ManagedCert describes a single CertDaxCertificate CR managed by the operator.
 type ManagedCert struct {
-	CertificateID int    `json:"certificate_id"`
-	Type          string `json:"type"`
-	SecretName    string `json:"secret_name"`
-	Namespace     string `json:"namespace"`
-	CommonName    string `json:"common_name,omitempty"`
-	Ready         bool   `json:"ready"`
-	ExpiresAt     string `json:"expires_at,omitempty"`
-	LastSyncedAt  string `json:"last_synced_at,omitempty"`
-	Message       string `json:"message,omitempty"`
+	CertificateID int      `json:"certificate_id"`
+	Type          string   `json:"type"`
+	SecretName    string   `json:"secret_name"`
+	Namespace     string   `json:"namespace"`
+	CommonName    string   `json:"common_name,omitempty"`
+	Ready         bool     `json:"ready"`
+	ExpiresAt     string   `json:"expires_at,omitempty"`
+	LastSyncedAt  string   `json:"last_synced_at,omitempty"`
+	Message       string   `json:"message,omitempty"`
+	Ingresses     []string `json:"ingresses,omitempty"`
 }
 
 // HeartbeatPayload is sent periodically to the CertDax backend.

@@ -20,6 +20,7 @@ import {
   Lock,
   CheckCircle,
   XCircle,
+  Globe,
 } from 'lucide-react';
 import api from '../services/api';
 import type { K8sOperator } from '../types';
@@ -384,6 +385,7 @@ export default function K8sOperatorDetailPage() {
                   <th className="px-6 py-3">Common Name</th>
                   <th className="px-6 py-3">Type</th>
                   <th className="px-6 py-3">Secret</th>
+                  <th className="px-6 py-3">Ingress</th>
                   <th className="px-6 py-3">Expires</th>
                   <th className="px-6 py-3">Last Synced</th>
                 </tr>
@@ -418,6 +420,20 @@ export default function K8sOperatorDetailPage() {
                     </td>
                     <td className="px-6 py-3 text-sm font-mono text-slate-600">
                       {cert.namespace}/{cert.secret_name}
+                    </td>
+                    <td className="px-6 py-3 text-sm text-slate-600">
+                      {cert.ingresses && cert.ingresses.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {cert.ingresses.map((ing, j) => (
+                            <span key={j} className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full w-fit">
+                              <Globe className="w-3 h-3" />
+                              {ing}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </td>
                     <td className="px-6 py-3 text-sm text-slate-600">
                       {cert.expires_at
