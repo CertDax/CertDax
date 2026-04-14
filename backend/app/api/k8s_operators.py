@@ -4,6 +4,7 @@ CRUD for K8s operators (list, create, detail, delete).
 Authentication: JWT or API key (same as agents).
 """
 
+import json
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -20,6 +21,15 @@ from app.utils.crypto import hash_token
 router = APIRouter()
 
 OFFLINE_THRESHOLD_SECONDS = 120
+
+
+def _parse_logs(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return []
 
 
 def _compute_status(op: K8sOperator) -> str:
@@ -49,6 +59,7 @@ def _operator_response(op: K8sOperator) -> dict:
         "status": _compute_status(op),
         "last_seen": op.last_seen.isoformat() if op.last_seen else None,
         "last_error": op.last_error,
+        "recent_logs": _parse_logs(op.recent_logs),
         "created_at": op.created_at.isoformat() if op.created_at else None,
     }
 

@@ -35,6 +35,7 @@ class K8sHeartbeat(BaseModel):
     ready_certificates: int = 0
     failed_certificates: int = 0
     last_error: str | None = None
+    recent_logs: list[str] | None = None
 
 
 def get_k8s_operator(
@@ -73,6 +74,9 @@ def heartbeat(
     operator.ready_certificates = data.ready_certificates
     operator.failed_certificates = data.failed_certificates
     operator.last_error = data.last_error
+    if data.recent_logs is not None:
+        import json
+        operator.recent_logs = json.dumps(data.recent_logs[-200:])
     operator.status = "online"
     operator.last_seen = datetime.now(timezone.utc)
     db.commit()

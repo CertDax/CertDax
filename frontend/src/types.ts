@@ -227,6 +227,7 @@ export interface K8sOperator {
   status: string;
   last_seen: string | null;
   last_error: string | null;
+  recent_logs: string[];
   created_at: string;
 }
 

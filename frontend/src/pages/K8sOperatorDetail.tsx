@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   Server,
+  ScrollText,
 } from 'lucide-react';
 import api from '../services/api';
 import type { K8sOperator } from '../types';
@@ -29,6 +30,8 @@ export default function K8sOperatorDetailPage() {
   const [newToken, setNewToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
+  const [autoScroll, setAutoScroll] = useState(true);
+  const logEndRef = useRef<HTMLDivElement>(null);
 
   const fetchOperator = async () => {
     try {
@@ -45,6 +48,12 @@ export default function K8sOperatorDetailPage() {
     const interval = setInterval(fetchOperator, 5000);
     return () => clearInterval(interval);
   }, [id]);
+
+  useEffect(() => {
+    if (autoScroll && logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [operator?.recent_logs, autoScroll]);
 
   const handleDelete = async () => {
     if (!confirm('Delete this operator? This cannot be undone.')) return;
@@ -288,6 +297,67 @@ export default function K8sOperatorDetailPage() {
           </pre>
         </div>
       )}
+
+      {/* Live logs */}
+      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 mb-6 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700">
+          <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <ScrollText className="w-4 h-4 text-emerald-400" />
+            Live Logs
+            <span className="text-xs text-slate-500">
+              ({operator.recent_logs?.length || 0} lines)
+            </span>
+          </h2>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoScroll}
+                onChange={(e) => setAutoScroll(e.target.checked)}
+                className="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+              />
+              Auto-scroll
+            </label>
+            <button
+              onClick={() => {
+                const text = (operator.recent_logs || []).join('\n');
+                copyToClipboard(text, 'logs');
+              }}
+              className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+            >
+              {copied === 'logs' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              Copy
+            </button>
+          </div>
+        </div>
+        <div className="overflow-auto max-h-96 p-4 font-mono text-xs leading-5">
+          {operator.recent_logs && operator.recent_logs.length > 0 ? (
+            operator.recent_logs.map((line, i) => {
+              const isError = /\bERROR\b/i.test(line);
+              const isWarn = /\bWARN/i.test(line);
+              return (
+                <div
+                  key={i}
+                  className={
+                    isError
+                      ? 'text-red-400'
+                      : isWarn
+                        ? 'text-amber-400'
+                        : 'text-slate-300'
+                  }
+                >
+                  {line}
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-slate-500 text-center py-8">
+              No logs available yet. Logs appear after the first heartbeat.
+            </div>
+          )}
+          <div ref={logEndRef} />
+        </div>
+      </div>
 
       {/* Metadata */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">

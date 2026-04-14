@@ -30,6 +30,7 @@ class K8sOperator(Base):
         DateTime(timezone=True), nullable=True
     )
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recent_logs: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("groups.id"), nullable=True
     )

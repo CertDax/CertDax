@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -16,9 +18,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	uzap "go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+
 	certdaxv1alpha1 "github.com/certdax/kubernetes-operator/api/v1alpha1"
 	"github.com/certdax/kubernetes-operator/internal/certdax"
 	"github.com/certdax/kubernetes-operator/internal/controller"
+	"github.com/certdax/kubernetes-operator/internal/logbuffer"
 )
 
 const version = "1.0.0"
@@ -31,8 +37,12 @@ func init() {
 }
 
 func main() {
+	// Setup logger with ring buffer to capture recent logs
+	logBuf := logbuffer.New(200)
 	opts := zap.Options{Development: false}
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts), zap.RawZapOpts(uzap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		return zapcore.NewTee(core, logBuf.ZapCore(zapcore.InfoLevel))
+	}))))
 
 	setupLog := ctrl.Log.WithName("setup")
 
@@ -111,7 +121,7 @@ func main() {
 	if operatorToken != "" {
 		heartbeatClient := certdax.NewClient(apiURL, operatorToken)
 		k8sClient := mgr.GetClient()
-		go runHeartbeat(heartbeatClient, k8sClient, namespace, 30*time.Second)
+		go runHeartbeat(heartbeatClient, k8sClient, namespace, 30*time.Second, logBuf)
 		setupLog.Info("Heartbeat reporting enabled")
 	} else {
 		setupLog.Info("CERTDAX_OPERATOR_TOKEN not set, heartbeat reporting disabled")
@@ -123,24 +133,60 @@ func main() {
 	}
 }
 
-func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watchNamespace string, interval time.Duration) {
+func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watchNamespace string, interval time.Duration, logBuf *logbuffer.RingBuffer) {
 	logger := ctrl.Log.WithName("heartbeat")
 
 	// Wait a bit for the cache to sync
 	time.Sleep(5 * time.Second)
 
+	var prevCPUTime float64
+	var prevWall time.Time
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for ; true; <-ticker.C {
-		payload := buildHeartbeatPayload(k8sClient, watchNamespace)
+		cpuTime := readProcCPUTime()
+		now := time.Now()
+
+		var cpuPercent string
+		if !prevWall.IsZero() && cpuTime >= 0 && prevCPUTime >= 0 {
+			wallDelta := now.Sub(prevWall).Seconds()
+			if wallDelta > 0 {
+				pct := (cpuTime - prevCPUTime) / wallDelta * 100
+				cpuPercent = fmt.Sprintf("%.1f%%", pct)
+			}
+		}
+		prevCPUTime = cpuTime
+		prevWall = now
+
+		payload := buildHeartbeatPayload(k8sClient, watchNamespace, cpuPercent, logBuf)
 		if err := heartbeatClient.SendHeartbeat(payload); err != nil {
 			logger.Error(err, "Failed to send heartbeat")
 		}
 	}
 }
 
-func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string) *certdax.HeartbeatPayload {
+// readProcCPUTime reads the process CPU time (user + system) in seconds from /proc/self/stat.
+func readProcCPUTime() float64 {
+	data, err := os.ReadFile("/proc/self/stat")
+	if err != nil {
+		return -1
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) < 15 {
+		return -1
+	}
+	utime, err1 := strconv.ParseFloat(fields[13], 64)
+	stime, err2 := strconv.ParseFloat(fields[14], 64)
+	if err1 != nil || err2 != nil {
+		return -1
+	}
+	// /proc/self/stat times are in clock ticks, typically 100 Hz
+	return (utime + stime) / 100.0
+}
+
+func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPercent string, logBuf *logbuffer.RingBuffer) *certdax.HeartbeatPayload {
 	ctx := context.Background()
 
 	// Count managed CertDaxCertificates
@@ -181,10 +227,12 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string) *cert
 		OperatorVersion:     version,
 		PodName:             os.Getenv("POD_NAME"),
 		NodeName:            os.Getenv("NODE_NAME"),
+		CPUUsage:            cpuPercent,
 		MemoryUsage:         fmt.Sprintf("%.1f MiB", float64(memStats.Alloc)/1024/1024),
 		ManagedCertificates: managed,
 		ReadyCertificates:   ready,
 		FailedCertificates:  failed,
 		LastError:           lastError,
+		RecentLogs:          logBuf.Lines(),
 	}
 }

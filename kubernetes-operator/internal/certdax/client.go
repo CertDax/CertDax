@@ -89,8 +89,9 @@ type HeartbeatPayload struct {
 	MemoryLimit         string `json:"memory_limit,omitempty"`
 	ManagedCertificates int    `json:"managed_certificates"`
 	ReadyCertificates   int    `json:"ready_certificates"`
-	FailedCertificates  int    `json:"failed_certificates"`
-	LastError           string `json:"last_error,omitempty"`
+	FailedCertificates  int      `json:"failed_certificates"`
+	LastError           string   `json:"last_error,omitempty"`
+	RecentLogs          []string `json:"recent_logs,omitempty"`
 }
 
 // SendHeartbeat sends operator status to the CertDax backend.
