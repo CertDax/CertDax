@@ -7,13 +7,20 @@ import (
 // CertDaxCertificateSpec defines the desired state of CertDaxCertificate.
 type CertDaxCertificateSpec struct {
 	// CertificateID is the ID of the certificate in CertDax.
-	// +kubebuilder:validation:Required
+	// When set to 0 with a Request block, the operator will request a new certificate.
+	// +optional
+	// +kubebuilder:default=0
 	CertificateID int `json:"certificateId"`
 
 	// Type is the certificate type: "selfsigned" or "acme".
 	// +kubebuilder:validation:Enum=selfsigned;acme
 	// +kubebuilder:default=selfsigned
 	Type string `json:"type"`
+
+	// Request triggers an automatic certificate request via the CertDax API.
+	// Only used when certificateId is 0.
+	// +optional
+	Request *CertificateRequest `json:"request,omitempty"`
 
 	// SecretName is the name of the Kubernetes TLS secret to create/update.
 	// +kubebuilder:validation:Required
@@ -44,10 +51,43 @@ type CertDaxCertificateSpec struct {
 	SecretAnnotations map[string]string `json:"secretAnnotations,omitempty"`
 }
 
+// CertificateRequest defines parameters for requesting a new certificate via the CertDax API.
+type CertificateRequest struct {
+	// CommonName is the primary domain / CN for the certificate.
+	// +kubebuilder:validation:Required
+	CommonName string `json:"commonName"`
+
+	// SANDomains is a comma-separated list of Subject Alternative Names.
+	// +optional
+	SANDomains string `json:"sanDomains,omitempty"`
+
+	// ProviderID is the CertDax ACME provider ID (required for type=acme).
+	// +optional
+	ProviderID int `json:"providerId,omitempty"`
+
+	// CaID is the CertDax CA certificate ID to sign with (for type=selfsigned).
+	// +optional
+	CaID int `json:"caId,omitempty"`
+
+	// AutoRenew enables automatic renewal of the certificate.
+	// +optional
+	// +kubebuilder:default=true
+	AutoRenew bool `json:"autoRenew,omitempty"`
+
+	// ValidityDays is the number of days the self-signed certificate is valid.
+	// +optional
+	// +kubebuilder:default=365
+	ValidityDays int `json:"validityDays,omitempty"`
+}
+
 // CertDaxCertificateStatus defines the observed state of CertDaxCertificate.
 type CertDaxCertificateStatus struct {
 	// Ready indicates whether the TLS secret has been successfully created.
 	Ready bool `json:"ready"`
+
+	// CertificateID is the CertDax certificate ID (set by operator after a request).
+	// +optional
+	CertificateID int `json:"certificateId,omitempty"`
 
 	// SecretName is the name of the created TLS secret.
 	// +optional

@@ -49,14 +49,74 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
+	// ---- Certificate request flow ----
+	// If certificateId is 0 and a request block is provided, ask the backend
+	// to create a new certificate first.
+	certID := certCR.Spec.CertificateID
+	if certID == 0 && certCR.Status.CertificateID != 0 {
+		// Already requested in a previous reconcile; use the stored ID.
+		certID = certCR.Status.CertificateID
+	}
+
+	if certID == 0 {
+		if certCR.Spec.Request == nil {
+			r.updateStatus(ctx, &certCR, false, "certificateId is 0 and no request block provided", "", "")
+			logger.Info("Nothing to do: no certificateId and no request block", "name", certCR.Name)
+			return ctrl.Result{}, nil
+		}
+
+		logger.Info("Requesting new certificate via CertDax API",
+			"name", certCR.Name,
+			"commonName", certCR.Spec.Request.CommonName,
+			"type", certCR.Spec.Type,
+		)
+
+		payload := &certdaxclient.CertificateRequestPayload{
+			CommonName:   certCR.Spec.Request.CommonName,
+			SANDomains:   certCR.Spec.Request.SANDomains,
+			Type:         certCR.Spec.Type,
+			ProviderID:   certCR.Spec.Request.ProviderID,
+			CaID:         certCR.Spec.Request.CaID,
+			AutoRenew:    certCR.Spec.Request.AutoRenew,
+			ValidityDays: certCR.Spec.Request.ValidityDays,
+		}
+
+		resp, err := r.CertDaxAPI.RequestCertificate(payload)
+		if err != nil {
+			r.updateStatus(ctx, &certCR, false, fmt.Sprintf("Failed to request certificate: %v", err), "", "")
+			logger.Error(err, "Failed to request certificate from CertDax")
+			return ctrl.Result{RequeueAfter: syncInterval}, nil
+		}
+
+		certID = resp.ID
+		logger.Info("Certificate requested successfully",
+			"name", certCR.Name,
+			"newCertificateId", certID,
+			"status", resp.Status,
+		)
+
+		// Store the assigned ID in the status so we don't request again.
+		latest := &certdaxv1alpha1.CertDaxCertificate{}
+		if err := r.Get(ctx, req.NamespacedName, latest); err == nil {
+			latest.Status.CertificateID = certID
+			latest.Status.Message = fmt.Sprintf("Certificate requested (id=%d), waiting for issuance", certID)
+			_ = r.Status().Update(ctx, latest)
+		}
+
+		// For ACME certs the cert won't be ready immediately; requeue.
+		if resp.Status != "issued" {
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+	}
+
 	logger.Info("Reconciling CertDaxCertificate",
 		"name", certCR.Name,
-		"certificateId", certCR.Spec.CertificateID,
+		"certificateId", certID,
 		"type", certCR.Spec.Type,
 	)
 
 	// Fetch certificate from CertDax API
-	certResp, err := r.CertDaxAPI.FetchCertificate(certCR.Spec.Type, certCR.Spec.CertificateID)
+	certResp, err := r.CertDaxAPI.FetchCertificate(certCR.Spec.Type, certID)
 	if err != nil {
 		if stderrors.Is(err, certdaxclient.ErrNotYetIssued) {
 			r.updateStatus(ctx, &certCR, false, "Waiting for certificate to be issued", "", "")
@@ -102,7 +162,7 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Apply labels
 	secret.Labels = map[string]string{
 		"app.kubernetes.io/managed-by": "certdax-operator",
-		"certdax.com/certificate-id":   fmt.Sprintf("%d", certCR.Spec.CertificateID),
+		"certdax.com/certificate-id":   fmt.Sprintf("%d", certID),
 		"certdax.com/certificate-type": certCR.Spec.Type,
 	}
 	for k, v := range certCR.Spec.SecretLabels {

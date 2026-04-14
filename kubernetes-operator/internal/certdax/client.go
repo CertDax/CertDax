@@ -173,3 +173,61 @@ func (c *Client) SendHeartbeat(payload *HeartbeatPayload) (*HeartbeatResponse, e
 
 	return &hbResp, nil
 }
+
+// CertificateRequestPayload is sent to POST /k8s/certificates/request.
+type CertificateRequestPayload struct {
+	CommonName   string `json:"common_name"`
+	SANDomains   string `json:"san_domains,omitempty"`
+	Type         string `json:"type"`
+	ProviderID   int    `json:"provider_id,omitempty"`
+	CaID         int    `json:"ca_id,omitempty"`
+	AutoRenew    bool   `json:"auto_renew"`
+	ValidityDays int    `json:"validity_days,omitempty"`
+}
+
+// CertificateRequestResponse is the JSON response from the request endpoint.
+type CertificateRequestResponse struct {
+	ID     int    `json:"id"`
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
+// RequestCertificate asks the CertDax backend to create a new certificate
+// and returns the assigned certificate ID.
+func (c *Client) RequestCertificate(payload *CertificateRequestPayload) (*CertificateRequestResponse, error) {
+	url := fmt.Sprintf("%s/k8s/certificates/request", c.BaseURL)
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling certificate request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("creating certificate request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("sending certificate request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading certificate request response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("certificate request returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var result CertificateRequestResponse
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("decoding certificate request response: %w", err)
+	}
+
+	return &result, nil
+}

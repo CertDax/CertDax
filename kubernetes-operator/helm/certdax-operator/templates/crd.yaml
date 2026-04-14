@@ -27,12 +27,12 @@ spec:
             spec:
               type: object
               required:
-                - certificateId
                 - secretName
               properties:
                 certificateId:
                   type: integer
-                  description: ID of the certificate in CertDax.
+                  description: "ID of the certificate in CertDax. Set to 0 with a request block to request a new certificate."
+                  default: 0
                 type:
                   type: string
                   description: "Certificate type: selfsigned or acme."
@@ -40,6 +40,32 @@ spec:
                     - selfsigned
                     - acme
                   default: selfsigned
+                request:
+                  type: object
+                  description: "Request a new certificate via the CertDax API (used when certificateId is 0)."
+                  required:
+                    - commonName
+                  properties:
+                    commonName:
+                      type: string
+                      description: Primary domain / CN for the certificate.
+                    sanDomains:
+                      type: string
+                      description: "Comma-separated Subject Alternative Names."
+                    providerId:
+                      type: integer
+                      description: "CertDax ACME provider ID (required for type: acme)."
+                    caId:
+                      type: integer
+                      description: "CertDax CA certificate ID to sign with (for type: selfsigned)."
+                    autoRenew:
+                      type: boolean
+                      description: Enable automatic renewal.
+                      default: true
+                    validityDays:
+                      type: integer
+                      description: "Number of days the self-signed certificate is valid."
+                      default: 365
                 secretName:
                   type: string
                   description: Name of the Kubernetes TLS secret to create/update.
@@ -69,6 +95,9 @@ spec:
               properties:
                 ready:
                   type: boolean
+                certificateId:
+                  type: integer
+                  description: "CertDax certificate ID (set by operator after requesting a new certificate)."
                 secretName:
                   type: string
                 commonName:
