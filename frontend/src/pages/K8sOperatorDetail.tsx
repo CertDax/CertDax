@@ -38,7 +38,7 @@ export default function K8sOperatorDetailPage() {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
-  const [showSetupGuide, setShowSetupGuide] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState<boolean | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const prevLogCountRef = useRef(0);
 
@@ -65,6 +65,16 @@ export default function K8sOperatorDetailPage() {
     }
     prevLogCountRef.current = newCount;
   }, [operator?.recent_logs, autoScroll]);
+
+  // Auto-show setup guide when operator hasn't connected yet, auto-collapse once online
+  useEffect(() => {
+    if (!operator) return;
+    if (showSetupGuide === null) {
+      setShowSetupGuide(!operator.last_seen);
+    } else if (showSetupGuide && operator.last_seen) {
+      setShowSetupGuide(false);
+    }
+  }, [operator?.last_seen]);
 
   const handleDelete = async () => {
     if (!confirm('Delete this operator? This cannot be undone.')) return;
@@ -188,7 +198,8 @@ export default function K8sOperatorDetailPage() {
         </div>
       )}
 
-      {/* Setup Guide */}
+      {/* Setup Guide - only shown when operator hasn't connected yet */}
+      {!operator.last_seen && (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
         <button
           onClick={() => setShowSetupGuide(!showSetupGuide)}
@@ -337,6 +348,7 @@ kubectl get cdxcert`}
           </div>
         )}
       </div>
+      )}
 
       {/* Info cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
