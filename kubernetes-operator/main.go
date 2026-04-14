@@ -138,14 +138,18 @@ func main() {
 func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watchNamespace string, interval time.Duration, logBuf *logbuffer.RingBuffer) {
 	logger := ctrl.Log.WithName("heartbeat")
 
+	// Prime CPU measurement before waiting so first heartbeat already has a delta
+	prevCPUTime := readProcCPUTime()
+	prevWall := time.Now()
+	if prevCPUTime < 0 {
+		logger.Info("WARNING: could not read /proc/self/stat for CPU measurement")
+	}
+
 	// Wait a bit for the cache to sync
 	time.Sleep(5 * time.Second)
 
 	// Discover Kubernetes version (once)
 	k8sVersion := discoverK8sVersion()
-
-	var prevCPUTime float64
-	var prevWall time.Time
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -155,7 +159,7 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 		now := time.Now()
 
 		var cpuPercent string
-		if !prevWall.IsZero() && cpuTime >= 0 && prevCPUTime >= 0 {
+		if cpuTime >= 0 && prevCPUTime >= 0 {
 			wallDelta := now.Sub(prevWall).Seconds()
 			if wallDelta > 0 {
 				pct := (cpuTime - prevCPUTime) / wallDelta * 100
@@ -164,6 +168,8 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 		}
 		prevCPUTime = cpuTime
 		prevWall = now
+
+		logger.V(1).Info("heartbeat tick", "cpuPercent", cpuPercent, "cpuTime", cpuTime)
 
 		payload := buildHeartbeatPayload(k8sClient, watchNamespace, cpuPercent, logBuf, k8sVersion)
 		if err := heartbeatClient.SendHeartbeat(payload); err != nil {
