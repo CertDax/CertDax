@@ -149,9 +149,12 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 	certResp, err := r.CertDaxAPI.FetchCertificate(certCR.Spec.Type, certID)
 	if err != nil {
 		if stderrors.Is(err, certdaxclient.ErrNotYetIssued) {
-			r.updateStatus(ctx, &certCR, false, "Waiting for certificate to be issued", "", "")
-			logger.Info("Certificate not yet issued, will retry", "name", certCR.Name, "certificateId", certCR.Spec.CertificateID)
-			return ctrl.Result{RequeueAfter: syncInterval}, nil
+			// Only update status if it changed, to avoid triggering a watch event loop
+			if certCR.Status.Message != "Waiting for certificate to be issued" {
+				r.updateStatus(ctx, &certCR, false, "Waiting for certificate to be issued", "", "")
+			}
+			logger.Info("Certificate not yet issued, will retry in 60s", "name", certCR.Name, "certificateId", certID)
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 		}
 		if stderrors.Is(err, certdaxclient.ErrNotFound) {
 			r.updateStatus(ctx, &certCR, false, "Certificate not found in CertDax (deleted?)", "", "")

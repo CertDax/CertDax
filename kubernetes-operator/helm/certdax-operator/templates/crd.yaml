@@ -55,6 +55,9 @@ spec:
                     providerId:
                       type: integer
                       description: "CertDax ACME provider ID (required for type: acme)."
+                    dnsProviderId:
+                      type: integer
+                      description: "CertDax DNS provider ID for dns-01 challenge (required for type: acme)."
                     caId:
                       type: integer
                       description: "CertDax CA certificate ID to sign with (for type: selfsigned)."
