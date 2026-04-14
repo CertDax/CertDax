@@ -254,6 +254,13 @@ def _migrate_db():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE self_signed_certificates ADD COLUMN signed_by_ca_id INTEGER REFERENCES self_signed_certificates(id)"))
 
+    # --- K8s operators migration ---
+    if "k8s_operators" in existing_tables:
+        existing_cols = {c["name"] for c in inspector.get_columns("k8s_operators")}
+        if "recent_logs" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN recent_logs TEXT"))
+
 
 def init_db():
     import app.models  # noqa: F401
