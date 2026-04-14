@@ -80,14 +80,15 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 		)
 
 		payload := &certdaxclient.CertificateRequestPayload{
-			CommonName:   certCR.Spec.Request.CommonName,
-			SANDomains:   certCR.Spec.Request.SANDomains,
-			Type:         certCR.Spec.Type,
-			ProviderID:   certCR.Spec.Request.ProviderID,
-			CaID:         certCR.Spec.Request.CaID,
-			IsCA:         certCR.Spec.Request.IsCA,
-			AutoRenew:    certCR.Spec.Request.AutoRenew,
-			ValidityDays: certCR.Spec.Request.ValidityDays,
+			CommonName:    certCR.Spec.Request.CommonName,
+			SANDomains:    certCR.Spec.Request.SANDomains,
+			Type:          certCR.Spec.Type,
+			ProviderID:    certCR.Spec.Request.ProviderID,
+			DnsProviderID: certCR.Spec.Request.DnsProviderID,
+			CaID:          certCR.Spec.Request.CaID,
+			IsCA:          certCR.Spec.Request.IsCA,
+			AutoRenew:     certCR.Spec.Request.AutoRenew,
+			ValidityDays:  certCR.Spec.Request.ValidityDays,
 		}
 
 		resp, err := r.CertDaxAPI.RequestCertificate(payload)

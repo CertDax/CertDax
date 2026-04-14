@@ -115,6 +115,7 @@ class K8sCertificateRequestBody(BaseModel):
     san_domains: str | None = None
     type: str = "selfsigned"  # "selfsigned" or "acme"
     provider_id: int | None = None
+    dns_provider_id: int | None = None
     ca_id: int | None = None
     is_ca: bool = False
     auto_renew: bool = True
@@ -155,7 +156,7 @@ def request_certificate_from_operator(
             common_name=body.common_name,
             san_domains=san_json,
             ca_id=body.provider_id,
-            dns_provider_id=None,
+            dns_provider_id=body.dns_provider_id,
             challenge_type="dns-01",
             auto_renew=body.auto_renew,
             status="pending",

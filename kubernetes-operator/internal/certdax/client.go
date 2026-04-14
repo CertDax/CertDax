@@ -191,14 +191,15 @@ func (c *Client) SendHeartbeat(payload *HeartbeatPayload) (*HeartbeatResponse, e
 
 // CertificateRequestPayload is sent to POST /k8s/certificates/request.
 type CertificateRequestPayload struct {
-	CommonName   string `json:"common_name"`
-	SANDomains   string `json:"san_domains,omitempty"`
-	Type         string `json:"type"`
-	ProviderID   int    `json:"provider_id,omitempty"`
-	CaID         int    `json:"ca_id,omitempty"`
-	IsCA         bool   `json:"is_ca"`
-	AutoRenew    bool   `json:"auto_renew"`
-	ValidityDays int    `json:"validity_days,omitempty"`
+	CommonName     string `json:"common_name"`
+	SANDomains     string `json:"san_domains,omitempty"`
+	Type           string `json:"type"`
+	ProviderID     int    `json:"provider_id,omitempty"`
+	DnsProviderID  int    `json:"dns_provider_id,omitempty"`
+	CaID           int    `json:"ca_id,omitempty"`
+	IsCA           bool   `json:"is_ca"`
+	AutoRenew      bool   `json:"auto_renew"`
+	ValidityDays   int    `json:"validity_days,omitempty"`
 }
 
 // CertificateRequestResponse is the JSON response from the request endpoint.

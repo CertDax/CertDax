@@ -65,6 +65,10 @@ type CertificateRequest struct {
 	// +optional
 	ProviderID int `json:"providerId,omitempty"`
 
+	// DnsProviderID is the CertDax DNS provider ID (required for ACME dns-01 challenges).
+	// +optional
+	DnsProviderID int `json:"dnsProviderId,omitempty"`
+
 	// CaID is the CertDax CA certificate ID to sign with (for type=selfsigned).
 	// +optional
 	CaID int `json:"caId,omitempty"`
