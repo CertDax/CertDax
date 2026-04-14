@@ -257,6 +257,9 @@ func (r *CertDaxCertificateReconciler) updateStatus(
 	// Re-fetch the latest version to avoid conflict errors
 	latest := &certdaxv1alpha1.CertDaxCertificate{}
 	if err := r.Get(ctx, types.NamespacedName{Name: certCR.Name, Namespace: certCR.Namespace}, latest); err != nil {
+		if errors.IsNotFound(err) {
+			return // CR was deleted, nothing to update
+		}
 		log.FromContext(ctx).Error(err, "Failed to re-fetch CertDaxCertificate for status update")
 		return
 	}
