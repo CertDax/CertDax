@@ -254,7 +254,8 @@ spec:
   request:
     commonName: www.example.com
     sanDomains: "www.example.com,example.com"
-    providerId: 1    # ACME provider ID from CertDax
+    providerId: 1       # ACME provider ID from CertDax
+    dnsProviderId: 1    # DNS provider ID for dns-01 challenge
     autoRenew: true
 ```
 
@@ -289,6 +290,7 @@ spec:
 | `commonName` | string | *required* | Primary domain / CN |
 | `sanDomains` | string | `""` | Comma-separated SANs |
 | `providerId` | int | — | ACME provider ID (required for `type: acme`) |
+| `dnsProviderId` | int | — | DNS provider ID for dns-01 challenge (required for `type: acme`) |
 | `caId` | int | — | CA certificate ID (for CA-signed self-signed) |
 | `isCA` | bool | `false` | Create a CA certificate instead of a regular certificate |
 | `autoRenew` | bool | `true` | Enable automatic renewal |

@@ -89,10 +89,10 @@ def get_acme_certificate(
     )
     if not cert:
         raise HTTPException(status_code=404, detail="Certificate not found")
-    if not cert.certificate_pem or not cert.private_key_pem_encrypted:
-        raise HTTPException(status_code=400, detail="Certificate has no key material")
     if cert.status not in ("valid", "issued"):
         raise HTTPException(status_code=400, detail="Certificate is not yet issued")
+    if not cert.certificate_pem or not cert.private_key_pem_encrypted:
+        raise HTTPException(status_code=400, detail="Certificate has no key material")
 
     key_pem = decrypt(cert.private_key_pem_encrypted)
 
