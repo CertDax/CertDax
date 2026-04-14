@@ -3,6 +3,7 @@ package controller
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"time"
 
@@ -57,6 +58,11 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Fetch certificate from CertDax API
 	certResp, err := r.CertDaxAPI.FetchCertificate(certCR.Spec.Type, certCR.Spec.CertificateID)
 	if err != nil {
+		if stderrors.Is(err, certdaxclient.ErrNotYetIssued) {
+			r.updateStatus(ctx, &certCR, false, "Waiting for certificate to be issued", "", "")
+			logger.Info("Certificate not yet issued, will retry", "name", certCR.Name, "certificateId", certCR.Spec.CertificateID)
+			return ctrl.Result{RequeueAfter: syncInterval}, nil
+		}
 		r.updateStatus(ctx, &certCR, false, fmt.Sprintf("Failed to fetch certificate: %v", err), "", "")
 		logger.Error(err, "Failed to fetch certificate from CertDax")
 		return ctrl.Result{RequeueAfter: syncInterval}, nil

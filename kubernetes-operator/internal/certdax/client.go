@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -40,6 +41,9 @@ func NewClient(baseURL, apiKey string) *Client {
 	}
 }
 
+// ErrNotYetIssued is returned when the certificate exists but has not been issued yet.
+var ErrNotYetIssued = fmt.Errorf("certificate is not yet issued")
+
 // FetchCertificate retrieves certificate material from CertDax.
 // certType must be "selfsigned" or "acme".
 func (c *Client) FetchCertificate(certType string, certID int) (*CertificateResponse, error) {
@@ -64,6 +68,9 @@ func (c *Client) FetchCertificate(certType string, certID int) (*CertificateResp
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusBadRequest && strings.Contains(string(body), "not yet issued") {
+			return nil, ErrNotYetIssued
+		}
 		return nil, fmt.Errorf("API returned %d: %s", resp.StatusCode, string(body))
 	}
 
