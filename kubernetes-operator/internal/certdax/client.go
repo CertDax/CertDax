@@ -75,23 +75,37 @@ func (c *Client) FetchCertificate(certType string, certID int) (*CertificateResp
 	return &certResp, nil
 }
 
+// ManagedCert describes a single CertDaxCertificate CR managed by the operator.
+type ManagedCert struct {
+	CertificateID int    `json:"certificate_id"`
+	Type          string `json:"type"`
+	SecretName    string `json:"secret_name"`
+	Namespace     string `json:"namespace"`
+	CommonName    string `json:"common_name,omitempty"`
+	Ready         bool   `json:"ready"`
+	ExpiresAt     string `json:"expires_at,omitempty"`
+	LastSyncedAt  string `json:"last_synced_at,omitempty"`
+	Message       string `json:"message,omitempty"`
+}
+
 // HeartbeatPayload is sent periodically to the CertDax backend.
 type HeartbeatPayload struct {
-	Namespace           string `json:"namespace,omitempty"`
-	DeploymentName      string `json:"deployment_name,omitempty"`
-	ClusterName         string `json:"cluster_name,omitempty"`
-	OperatorVersion     string `json:"operator_version,omitempty"`
-	KubernetesVersion   string `json:"kubernetes_version,omitempty"`
-	PodName             string `json:"pod_name,omitempty"`
-	NodeName            string `json:"node_name,omitempty"`
-	CPUUsage            string `json:"cpu_usage,omitempty"`
-	MemoryUsage         string `json:"memory_usage,omitempty"`
-	MemoryLimit         string `json:"memory_limit,omitempty"`
-	ManagedCertificates int    `json:"managed_certificates"`
-	ReadyCertificates   int    `json:"ready_certificates"`
-	FailedCertificates  int      `json:"failed_certificates"`
-	LastError           string   `json:"last_error,omitempty"`
-	RecentLogs          []string `json:"recent_logs,omitempty"`
+	Namespace           string        `json:"namespace,omitempty"`
+	DeploymentName      string        `json:"deployment_name,omitempty"`
+	ClusterName         string        `json:"cluster_name,omitempty"`
+	OperatorVersion     string        `json:"operator_version,omitempty"`
+	KubernetesVersion   string        `json:"kubernetes_version,omitempty"`
+	PodName             string        `json:"pod_name,omitempty"`
+	NodeName            string        `json:"node_name,omitempty"`
+	CPUUsage            string        `json:"cpu_usage,omitempty"`
+	MemoryUsage         string        `json:"memory_usage,omitempty"`
+	MemoryLimit         string        `json:"memory_limit,omitempty"`
+	ManagedCertificates int           `json:"managed_certificates"`
+	ReadyCertificates   int           `json:"ready_certificates"`
+	FailedCertificates  int           `json:"failed_certificates"`
+	Certificates        []ManagedCert `json:"certificates,omitempty"`
+	LastError           string        `json:"last_error,omitempty"`
+	RecentLogs          []string      `json:"recent_logs,omitempty"`
 }
 
 // SendHeartbeat sends operator status to the CertDax backend.

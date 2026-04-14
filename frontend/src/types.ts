@@ -208,6 +208,18 @@ export interface AgentGroupDetail extends AgentGroupInfo {
   assigned_self_signed_ids: number[];
 }
 
+export interface K8sManagedCert {
+  certificate_id: number;
+  type: string;
+  secret_name: string;
+  namespace: string;
+  common_name: string | null;
+  ready: boolean;
+  expires_at: string | null;
+  last_synced_at: string | null;
+  message: string | null;
+}
+
 export interface K8sOperator {
   id: number;
   name: string;
@@ -224,6 +236,7 @@ export interface K8sOperator {
   managed_certificates: number;
   ready_certificates: number;
   failed_certificates: number;
+  certificates: K8sManagedCert[];
   status: string;
   last_seen: string | null;
   last_error: string | null;

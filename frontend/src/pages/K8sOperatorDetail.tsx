@@ -17,6 +17,9 @@ import {
   AlertTriangle,
   Server,
   ScrollText,
+  Lock,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import api from '../services/api';
 import type { K8sOperator } from '../types';
@@ -357,6 +360,83 @@ export default function K8sOperatorDetailPage() {
           )}
           <div ref={logEndRef} />
         </div>
+      </div>
+
+      {/* Deployed Certificates */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <Lock className="w-5 h-5 text-blue-500" />
+            Deployed Certificates
+            <span className="text-sm font-normal text-slate-400">
+              ({operator.certificates?.length || 0})
+            </span>
+          </h2>
+        </div>
+        {operator.certificates && operator.certificates.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Common Name</th>
+                  <th className="px-6 py-3">Type</th>
+                  <th className="px-6 py-3">Secret</th>
+                  <th className="px-6 py-3">Expires</th>
+                  <th className="px-6 py-3">Last Synced</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {operator.certificates.map((cert, i) => (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-3">
+                      {cert.ready ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Ready
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 px-2.5 py-1 rounded-full" title={cert.message || undefined}>
+                          <XCircle className="w-3.5 h-3.5" />
+                          Failed
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-3 text-sm font-medium text-slate-900">
+                      {cert.common_name || '-'}
+                    </td>
+                    <td className="px-6 py-3">
+                      <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full ${
+                        cert.type === 'acme'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-violet-50 text-violet-700'
+                      }`}>
+                        {cert.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-sm font-mono text-slate-600">
+                      {cert.namespace}/{cert.secret_name}
+                    </td>
+                    <td className="px-6 py-3 text-sm text-slate-600">
+                      {cert.expires_at
+                        ? format(new Date(cert.expires_at), 'd MMM yyyy')
+                        : '-'}
+                    </td>
+                    <td className="px-6 py-3 text-sm text-slate-600">
+                      {cert.last_synced_at
+                        ? format(new Date(cert.last_synced_at), 'd MMM yyyy HH:mm')
+                        : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-6 py-12 text-center text-sm text-slate-400">
+            No certificates deployed by this operator yet.
+          </div>
+        )}
       </div>
 
       {/* Metadata */}

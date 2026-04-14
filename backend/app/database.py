@@ -260,6 +260,9 @@ def _migrate_db():
         if "recent_logs" not in existing_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN recent_logs TEXT"))
+        if "managed_certs_json" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN managed_certs_json TEXT"))
 
 
 def init_db():

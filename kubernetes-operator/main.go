@@ -208,6 +208,7 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 		listOpts = append(listOpts, client.InNamespace(watchNamespace))
 	}
 	managed, ready, failed := 0, 0, 0
+	var certs []certdax.ManagedCert
 	if err := k8sClient.List(ctx, &certList, listOpts...); err == nil {
 		managed = len(certList.Items)
 		for _, c := range certList.Items {
@@ -216,6 +217,21 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 			} else {
 				failed++
 			}
+			ns := c.Spec.SecretNamespace
+			if ns == "" {
+				ns = c.Namespace
+			}
+			certs = append(certs, certdax.ManagedCert{
+				CertificateID: c.Spec.CertificateID,
+				Type:          c.Spec.Type,
+				SecretName:    c.Spec.SecretName,
+				Namespace:     ns,
+				CommonName:    c.Status.CommonName,
+				Ready:         c.Status.Ready,
+				ExpiresAt:     c.Status.ExpiresAt,
+				LastSyncedAt:  c.Status.LastSyncedAt,
+				Message:       c.Status.Message,
+			})
 		}
 	}
 
@@ -245,6 +261,7 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 		ManagedCertificates: managed,
 		ReadyCertificates:   ready,
 		FailedCertificates:  failed,
+		Certificates:        certs,
 		LastError:           lastError,
 		RecentLogs:          logBuf.Lines(),
 	}
