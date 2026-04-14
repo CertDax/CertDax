@@ -18,6 +18,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"k8s.io/client-go/discovery"
+
 	uzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -139,6 +141,9 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 	// Wait a bit for the cache to sync
 	time.Sleep(5 * time.Second)
 
+	// Discover Kubernetes version (once)
+	k8sVersion := discoverK8sVersion()
+
 	var prevCPUTime float64
 	var prevWall time.Time
 
@@ -160,7 +165,7 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 		prevCPUTime = cpuTime
 		prevWall = now
 
-		payload := buildHeartbeatPayload(k8sClient, watchNamespace, cpuPercent, logBuf)
+		payload := buildHeartbeatPayload(k8sClient, watchNamespace, cpuPercent, logBuf, k8sVersion)
 		if err := heartbeatClient.SendHeartbeat(payload); err != nil {
 			logger.Error(err, "Failed to send heartbeat")
 		}
@@ -186,7 +191,23 @@ func readProcCPUTime() float64 {
 	return (utime + stime) / 100.0
 }
 
-func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPercent string, logBuf *logbuffer.RingBuffer) *certdax.HeartbeatPayload {
+func discoverK8sVersion() string {
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return ""
+	}
+	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return ""
+	}
+	info, err := dc.ServerVersion()
+	if err != nil {
+		return ""
+	}
+	return info.GitVersion
+}
+
+func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPercent string, logBuf *logbuffer.RingBuffer, k8sVersion string) *certdax.HeartbeatPayload {
 	ctx := context.Background()
 
 	// Count managed CertDaxCertificates
@@ -225,6 +246,7 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 		DeploymentName:      os.Getenv("DEPLOYMENT_NAME"),
 		ClusterName:         os.Getenv("CLUSTER_NAME"),
 		OperatorVersion:     version,
+		KubernetesVersion:   k8sVersion,
 		PodName:             os.Getenv("POD_NAME"),
 		NodeName:            os.Getenv("NODE_NAME"),
 		CPUUsage:            cpuPercent,

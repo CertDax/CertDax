@@ -67,7 +67,8 @@ def heartbeat(
     operator.kubernetes_version = data.kubernetes_version
     operator.pod_name = data.pod_name
     operator.node_name = data.node_name
-    operator.cpu_usage = data.cpu_usage
+    if data.cpu_usage:
+        operator.cpu_usage = data.cpu_usage
     operator.memory_usage = data.memory_usage
     operator.memory_limit = data.memory_limit
     operator.managed_certificates = data.managed_certificates
