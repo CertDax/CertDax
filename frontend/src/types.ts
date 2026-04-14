@@ -236,6 +236,7 @@ export interface K8sOperator {
   memory_limit: string | null;
   managed_certificates: number;
   ready_certificates: number;
+  pending_certificates: number;
   failed_certificates: number;
   certificates: K8sManagedCert[];
   status: string;

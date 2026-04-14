@@ -20,6 +20,7 @@ import {
   Lock,
   CheckCircle,
   XCircle,
+  Clock,
   Globe,
   BookOpen,
   ChevronDown,
@@ -549,7 +550,7 @@ kubectl get cdxcert`}
             <ShieldCheck className="w-5 h-5 text-emerald-500" />
             Certificate Statistics
           </h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
               <p className="text-2xl font-bold text-blue-600">{operator.managed_certificates}</p>
               <p className="text-xs text-blue-700 mt-1">Managed</p>
@@ -557,6 +558,10 @@ kubectl get cdxcert`}
             <div className="text-center p-3 bg-emerald-50 rounded-lg">
               <p className="text-2xl font-bold text-emerald-600">{operator.ready_certificates}</p>
               <p className="text-xs text-emerald-700 mt-1">Ready</p>
+            </div>
+            <div className="text-center p-3 bg-amber-50 rounded-lg">
+              <p className="text-2xl font-bold text-amber-600">{operator.pending_certificates}</p>
+              <p className="text-xs text-amber-700 mt-1">Pending</p>
             </div>
             <div className="text-center p-3 bg-red-50 rounded-lg">
               <p className="text-2xl font-bold text-red-600">{operator.failed_certificates}</p>
@@ -680,6 +685,11 @@ kubectl get cdxcert`}
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
                           <CheckCircle className="w-3.5 h-3.5" />
                           Ready
+                        </span>
+                      ) : cert.message === 'Waiting for certificate to be issued' || !cert.message ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full" title={cert.message || 'Pending'}>
+                          <Clock className="w-3.5 h-3.5" />
+                          Pending
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 px-2.5 py-1 rounded-full" title={cert.message || undefined}>

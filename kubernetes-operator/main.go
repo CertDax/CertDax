@@ -417,13 +417,15 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 		}
 	}
 
-	managed, ready, failed := 0, 0, 0
+	managed, ready, failed, pending := 0, 0, 0, 0
 	var certs []certdax.ManagedCert
 	if err := k8sClient.List(ctx, &certList, listOpts...); err == nil {
 		managed = len(certList.Items)
 		for _, c := range certList.Items {
 			if c.Status.Ready {
 				ready++
+			} else if c.Status.Message == "Waiting for certificate to be issued" || c.Status.Message == "" {
+				pending++
 			} else {
 				failed++
 			}
@@ -486,6 +488,7 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 		MemoryUsage:         fmt.Sprintf("%.1f MiB", float64(memStats.Alloc)/1024/1024),
 		ManagedCertificates: managed,
 		ReadyCertificates:   ready,
+		PendingCertificates: pending,
 		FailedCertificates:  failed,
 		Certificates:        certs,
 		LastError:           lastError,

@@ -118,6 +118,7 @@ type HeartbeatPayload struct {
 	MemoryLimit         string        `json:"memory_limit,omitempty"`
 	ManagedCertificates int           `json:"managed_certificates"`
 	ReadyCertificates   int           `json:"ready_certificates"`
+	PendingCertificates int           `json:"pending_certificates"`
 	FailedCertificates  int           `json:"failed_certificates"`
 	Certificates        []ManagedCert `json:"certificates,omitempty"`
 	LastError           string        `json:"last_error,omitempty"`

@@ -34,6 +34,7 @@ class K8sHeartbeat(BaseModel):
     memory_limit: str | None = None
     managed_certificates: int = 0
     ready_certificates: int = 0
+    pending_certificates: int = 0
     failed_certificates: int = 0
     last_error: str | None = None
     recent_logs: list[str] | None = None
@@ -75,6 +76,7 @@ def heartbeat(
     operator.memory_limit = data.memory_limit
     operator.managed_certificates = data.managed_certificates
     operator.ready_certificates = data.ready_certificates
+    operator.pending_certificates = data.pending_certificates
     operator.failed_certificates = data.failed_certificates
     operator.last_error = data.last_error
     if data.recent_logs is not None:

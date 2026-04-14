@@ -68,6 +68,7 @@ def _operator_response(op: K8sOperator) -> dict:
         "memory_limit": op.memory_limit,
         "managed_certificates": op.managed_certificates,
         "ready_certificates": op.ready_certificates,
+        "pending_certificates": op.pending_certificates,
         "failed_certificates": op.failed_certificates,
         "status": _compute_status(op),
         "last_seen": op.last_seen.isoformat() if op.last_seen else None,
