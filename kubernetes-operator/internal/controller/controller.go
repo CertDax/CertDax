@@ -151,7 +151,7 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 		if stderrors.Is(err, certdaxclient.ErrNotYetIssued) {
 			// Only update status if it changed, to avoid triggering a watch event loop
 			if certCR.Status.Message != "Waiting for certificate to be issued" {
-				r.updateStatus(ctx, &certCR, false, "Waiting for certificate to be issued", "", "")
+				r.updateStatusWithReason(ctx, &certCR, false, "Waiting for certificate to be issued", "", "", "Pending")
 			}
 			logger.Info("Certificate not yet issued, will retry in 60s", "name", certCR.Name, "certificateId", certID)
 			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
@@ -258,6 +258,15 @@ func (r *CertDaxCertificateReconciler) updateStatus(
 	ready bool,
 	message, commonName, expiresAt string,
 ) {
+	r.updateStatusWithReason(ctx, certCR, ready, message, commonName, expiresAt, "Reconciled")
+}
+
+func (r *CertDaxCertificateReconciler) updateStatusWithReason(
+	ctx context.Context,
+	certCR *certdaxv1alpha1.CertDaxCertificate,
+	ready bool,
+	message, commonName, expiresAt, reason string,
+) {
 	// Re-fetch the latest version to avoid conflict errors
 	latest := &certdaxv1alpha1.CertDaxCertificate{}
 	if err := r.Get(ctx, types.NamespacedName{Name: certCR.Name, Namespace: certCR.Namespace}, latest); err != nil {
@@ -292,7 +301,7 @@ func (r *CertDaxCertificateReconciler) updateStatus(
 			latest.Status.Conditions[i].Status = conditionStatus
 			latest.Status.Conditions[i].Message = message
 			latest.Status.Conditions[i].LastTransitionTime = metav1.Now()
-			latest.Status.Conditions[i].Reason = "Reconciled"
+			latest.Status.Conditions[i].Reason = reason
 			found = true
 			break
 		}
@@ -302,7 +311,7 @@ func (r *CertDaxCertificateReconciler) updateStatus(
 			Type:               conditionType,
 			Status:             conditionStatus,
 			Message:            message,
-			Reason:             "Reconciled",
+			Reason:             reason,
 			LastTransitionTime: metav1.Now(),
 		})
 	}
