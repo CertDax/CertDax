@@ -43,7 +43,7 @@ func NewClient(baseURL, apiKey string) *Client {
 // FetchCertificate retrieves certificate material from CertDax.
 // certType must be "selfsigned" or "acme".
 func (c *Client) FetchCertificate(certType string, certID int) (*CertificateResponse, error) {
-	url := fmt.Sprintf("%s/api/k8s/certificate/%s/%d", c.BaseURL, certType, certID)
+	url := fmt.Sprintf("%s/k8s/certificate/%s/%d", c.BaseURL, certType, certID)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
