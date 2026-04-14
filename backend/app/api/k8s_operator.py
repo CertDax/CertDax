@@ -83,6 +83,16 @@ def heartbeat(
     if data.certificates is not None:
         import json as _json
         operator.managed_certs_json = _json.dumps(data.certificates)
+
+    # Auto-clear completed CR deletions: if a pending deletion's cert ID
+    # is no longer reported in managed certs, it was processed.
+    if operator.pending_cr_deletions:
+        import json as _json2
+        pending = _json2.loads(operator.pending_cr_deletions)
+        if pending and data.certificates is not None:
+            reported_ids = {(c.get("certificate_id"), c.get("type")) for c in data.certificates}
+            remaining = [p for p in pending if (p["certificate_id"], p["certificate_type"]) in reported_ids]
+            operator.pending_cr_deletions = _json2.dumps(remaining) if remaining else None
     operator.status = "online"
     operator.last_seen = datetime.now(timezone.utc)
     db.commit()
@@ -105,4 +115,12 @@ def heartbeat(
         }
         for d in deployments
     ]
-    return {"status": "ok", "desired_certificates": desired}
+
+    # Include pending CR deletions (remap to match Go struct: certificate_id + type)
+    import json as _json3
+    raw_pending = _json3.loads(operator.pending_cr_deletions) if operator.pending_cr_deletions else []
+    delete_certs = [
+        {"certificate_id": p["certificate_id"], "type": p["certificate_type"]}
+        for p in raw_pending
+    ]
+    return {"status": "ok", "desired_certificates": desired, "delete_certificates": delete_certs}

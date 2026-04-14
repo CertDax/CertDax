@@ -10,6 +10,7 @@ import (
 	"time"
 
 	networkingv1 "k8s.io/api/networking/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -182,6 +183,11 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 		if len(hbResp.DesiredCertificates) > 0 || true {
 			reconcileDesiredCertificates(k8sClient, watchNamespace, hbResp.DesiredCertificates, logger)
 		}
+
+		// Delete CRs requested via the dashboard
+		if len(hbResp.DeleteCertificates) > 0 {
+			deleteCertificateCRs(k8sClient, watchNamespace, hbResp.DeleteCertificates, logger)
+		}
 	}
 }
 
@@ -277,6 +283,72 @@ func reconcileDesiredCertificates(k8sClient client.Client, watchNamespace string
 	}
 }
 
+// deleteCertificateCRs deletes CertDaxCertificate CRs that have been marked
+// for deletion via the dashboard (for YAML-created certs).
+func deleteCertificateCRs(k8sClient client.Client, watchNamespace string, toDelete []certdax.DeleteCertificate, logger logr.Logger) {
+	ctx := context.Background()
+
+	var certList certdaxv1alpha1.CertDaxCertificateList
+	listOpts := []client.ListOption{}
+	if watchNamespace != "" {
+		listOpts = append(listOpts, client.InNamespace(watchNamespace))
+	}
+	if err := k8sClient.List(ctx, &certList, listOpts...); err != nil {
+		logger.Error(err, "Failed to list CertDaxCertificates for deletion")
+		return
+	}
+
+	// Build a set of (certificate_id, type) to delete
+	deleteSet := make(map[string]bool, len(toDelete))
+	for _, d := range toDelete {
+		key := fmt.Sprintf("%d/%s", d.CertificateID, d.Type)
+		deleteSet[key] = true
+	}
+
+	for _, cr := range certList.Items {
+		// Resolve cert ID the same way as the heartbeat
+		resolvedID := cr.Spec.CertificateID
+		if resolvedID == 0 {
+			resolvedID = cr.Status.CertificateID
+		}
+		if resolvedID == 0 {
+			if ann, ok := cr.Annotations["certdax.com/certificate-id"]; ok {
+				fmt.Sscanf(ann, "%d", &resolvedID)
+			}
+		}
+
+		key := fmt.Sprintf("%d/%s", resolvedID, cr.Spec.Type)
+		if !deleteSet[key] {
+			continue
+		}
+
+		// Delete the associated TLS secret first
+		secretNs := cr.Spec.SecretNamespace
+		if secretNs == "" {
+			secretNs = cr.Namespace
+		}
+		secret := &corev1.Secret{}
+		secretKey := client.ObjectKey{Namespace: secretNs, Name: cr.Spec.SecretName}
+		if err := k8sClient.Get(ctx, secretKey, secret); err == nil {
+			if err := k8sClient.Delete(ctx, secret); err != nil && !k8serrors.IsNotFound(err) {
+				logger.Error(err, "Failed to delete TLS secret", "secret", secretKey)
+			} else {
+				logger.Info("Deleted TLS secret for CR deletion", "secret", secretKey)
+			}
+		}
+
+		// Delete the CR
+		crCopy := cr
+		if err := k8sClient.Delete(ctx, &crCopy); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				logger.Error(err, "Failed to delete CertDaxCertificate CR", "name", cr.Name, "namespace", cr.Namespace)
+			}
+		} else {
+			logger.Info("Deleted CertDaxCertificate CR per dashboard request", "name", cr.Name, "namespace", cr.Namespace, "certificateId", resolvedID)
+		}
+	}
+}
+
 // getProcessCPUTime returns the process CPU time (user + system) in seconds
 // using the getrusage syscall, which is always available.
 func getProcessCPUTime() float64 {
@@ -359,17 +431,32 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 			if ns == "" {
 				ns = c.Namespace
 			}
+			// Resolve certificate ID: spec → status → annotation
+			resolvedID := c.Spec.CertificateID
+			if resolvedID == 0 {
+				resolvedID = c.Status.CertificateID
+			}
+			if resolvedID == 0 {
+				if ann, ok := c.Annotations["certdax.com/certificate-id"]; ok {
+					fmt.Sscanf(ann, "%d", &resolvedID)
+				}
+			}
+
+			_, isDashboardManaged := c.Labels[dashboardManagedLabel]
+
 			certs = append(certs, certdax.ManagedCert{
-				CertificateID: c.Spec.CertificateID,
-				Type:          c.Spec.Type,
-				SecretName:    c.Spec.SecretName,
-				Namespace:     ns,
-				CommonName:    c.Status.CommonName,
-				Ready:         c.Status.Ready,
-				ExpiresAt:     c.Status.ExpiresAt,
-				LastSyncedAt:  c.Status.LastSyncedAt,
-				Message:       c.Status.Message,
-				Ingresses:     secretToIngresses[ns+"/"+c.Spec.SecretName],
+				CertificateID:    resolvedID,
+				Type:             c.Spec.Type,
+				SecretName:       c.Spec.SecretName,
+				Namespace:        ns,
+				CommonName:       c.Status.CommonName,
+				Ready:            c.Status.Ready,
+				ExpiresAt:        c.Status.ExpiresAt,
+				LastSyncedAt:     c.Status.LastSyncedAt,
+				Message:          c.Status.Message,
+				Ingresses:        secretToIngresses[ns+"/"+c.Spec.SecretName],
+				CRName:           c.Name,
+				DashboardManaged: isDashboardManaged,
 			})
 		}
 	}

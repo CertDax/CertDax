@@ -266,6 +266,9 @@ def _migrate_db():
         if "api_key_id" not in existing_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN api_key_id INTEGER REFERENCES api_keys(id) ON DELETE SET NULL"))
+        if "pending_cr_deletions" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN pending_cr_deletions TEXT"))
 
     # --- K8s deployments table ---
     if "k8s_deployments" not in existing_tables:

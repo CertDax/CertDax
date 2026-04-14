@@ -84,16 +84,18 @@ func (c *Client) FetchCertificate(certType string, certID int) (*CertificateResp
 
 // ManagedCert describes a single CertDaxCertificate CR managed by the operator.
 type ManagedCert struct {
-	CertificateID int      `json:"certificate_id"`
-	Type          string   `json:"type"`
-	SecretName    string   `json:"secret_name"`
-	Namespace     string   `json:"namespace"`
-	CommonName    string   `json:"common_name,omitempty"`
-	Ready         bool     `json:"ready"`
-	ExpiresAt     string   `json:"expires_at,omitempty"`
-	LastSyncedAt  string   `json:"last_synced_at,omitempty"`
-	Message       string   `json:"message,omitempty"`
-	Ingresses     []string `json:"ingresses,omitempty"`
+	CertificateID    int      `json:"certificate_id"`
+	Type             string   `json:"type"`
+	SecretName       string   `json:"secret_name"`
+	Namespace        string   `json:"namespace"`
+	CommonName       string   `json:"common_name,omitempty"`
+	Ready            bool     `json:"ready"`
+	ExpiresAt        string   `json:"expires_at,omitempty"`
+	LastSyncedAt     string   `json:"last_synced_at,omitempty"`
+	Message          string   `json:"message,omitempty"`
+	Ingresses        []string `json:"ingresses,omitempty"`
+	CRName           string   `json:"cr_name,omitempty"`
+	DashboardManaged bool     `json:"dashboard_managed"`
 }
 
 // HeartbeatPayload is sent periodically to the CertDax backend.
@@ -131,6 +133,13 @@ type DesiredCertificate struct {
 type HeartbeatResponse struct {
 	Status              string               `json:"status"`
 	DesiredCertificates []DesiredCertificate  `json:"desired_certificates,omitempty"`
+	DeleteCertificates  []DeleteCertificate   `json:"delete_certificates,omitempty"`
+}
+
+// DeleteCertificate represents a certificate CR to delete from the cluster.
+type DeleteCertificate struct {
+	CertificateID int    `json:"certificate_id"`
+	Type          string `json:"type"`
 }
 
 // SendHeartbeat sends operator status to the CertDax backend.

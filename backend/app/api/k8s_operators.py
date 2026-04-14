@@ -299,3 +299,36 @@ def delete_deployment(
     db.delete(dep)
     db.commit()
     return {"status": "deleted"}
+
+
+class DeleteCRRequest(BaseModel):
+    certificate_id: int
+    certificate_type: str
+
+
+@router.post("/{operator_id}/delete-cr", summary="Request deletion of a YAML-created certificate CR")
+def request_cr_deletion(
+    operator_id: int,
+    data: DeleteCRRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Mark a certificate CR for deletion by the operator. Used for certs created
+    via YAML (not dashboard-managed) that don't have a K8sDeployment record."""
+    gids = visible_group_ids(db, user, "k8s_operators")
+    op = (
+        db.query(K8sOperator)
+        .filter(K8sOperator.id == operator_id, K8sOperator.group_id.in_(gids))
+        .first()
+    )
+    if not op:
+        raise HTTPException(status_code=404, detail="Operator not found")
+
+    pending = json.loads(op.pending_cr_deletions) if op.pending_cr_deletions else []
+    # Avoid duplicates
+    entry = {"certificate_id": data.certificate_id, "certificate_type": data.certificate_type}
+    if entry not in pending:
+        pending.append(entry)
+    op.pending_cr_deletions = json.dumps(pending)
+    db.commit()
+    return {"status": "queued"}

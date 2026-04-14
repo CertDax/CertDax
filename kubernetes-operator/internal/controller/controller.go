@@ -57,6 +57,14 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 		// Already requested in a previous reconcile; use the stored ID.
 		certID = certCR.Status.CertificateID
 	}
+	// Fallback: check annotation in case status was lost
+	if certID == 0 {
+		if ann, ok := certCR.Annotations["certdax.com/certificate-id"]; ok {
+			if parsed, err := fmt.Sscanf(ann, "%d", &certID); err == nil && parsed == 1 && certID > 0 {
+				logger.Info("Recovered certificateId from annotation", "name", certCR.Name, "certificateId", certID)
+			}
+		}
+	}
 
 	if certID == 0 {
 		if certCR.Spec.Request == nil {
@@ -96,12 +104,28 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 			"status", resp.Status,
 		)
 
-		// Store the assigned ID in the status so we don't request again.
+		// Persist the assigned ID via annotation (survives status conflicts)
 		latest := &certdaxv1alpha1.CertDaxCertificate{}
+		if err := r.Get(ctx, req.NamespacedName, latest); err != nil {
+			logger.Error(err, "Failed to re-fetch CR after certificate request")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+		if latest.Annotations == nil {
+			latest.Annotations = make(map[string]string)
+		}
+		latest.Annotations["certdax.com/certificate-id"] = fmt.Sprintf("%d", certID)
+		if err := r.Update(ctx, latest); err != nil {
+			logger.Error(err, "Failed to save certificate-id annotation")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
+		// Now update status
 		if err := r.Get(ctx, req.NamespacedName, latest); err == nil {
 			latest.Status.CertificateID = certID
 			latest.Status.Message = fmt.Sprintf("Certificate requested (id=%d), waiting for issuance", certID)
-			_ = r.Status().Update(ctx, latest)
+			if err := r.Status().Update(ctx, latest); err != nil {
+				logger.Error(err, "Failed to update status with certificate ID, will recover from annotation")
+			}
 		}
 
 		// For ACME certs the cert won't be ready immediately; requeue.

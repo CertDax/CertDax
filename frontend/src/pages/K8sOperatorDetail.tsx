@@ -165,13 +165,27 @@ export default function K8sOperatorDetailPage() {
 
   const handleDeleteDeployment = async (certId: number, certType: string) => {
     const dep = deployments.find(d => d.certificate_id === certId && d.certificate_type === certType);
-    if (!dep) return;
-    if (!confirm('Remove this certificate deployment? The operator will delete the TLS secret from the cluster.')) return;
-    try {
-      await api.delete(`/k8s-operators/${id}/deployments/${dep.id}`);
-      fetchOperator();
-    } catch (err) {
-      console.error('Delete deployment failed', err);
+    if (dep) {
+      // Dashboard-deployed cert: remove the deployment record
+      if (!confirm('Remove this certificate deployment? The operator will delete the TLS secret from the cluster.')) return;
+      try {
+        await api.delete(`/k8s-operators/${id}/deployments/${dep.id}`);
+        fetchOperator();
+      } catch (err) {
+        console.error('Delete deployment failed', err);
+      }
+    } else {
+      // YAML-created cert: request CR deletion via the operator
+      if (!confirm('Delete this certificate CR from the cluster? The operator will remove the TLS secret and the CRD.')) return;
+      try {
+        await api.post(`/k8s-operators/${id}/delete-cr`, {
+          certificate_id: certId,
+          certificate_type: certType,
+        });
+        fetchOperator();
+      } catch (err) {
+        console.error('Delete CR failed', err);
+      }
     }
   };
 
