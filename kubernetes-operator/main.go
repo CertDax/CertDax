@@ -461,10 +461,10 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 		}
 	}
 
-	// Collect last error from any failed cert
+	// Collect last error from any failed cert (skip pending/waiting states)
 	var lastError string
 	for _, c := range certList.Items {
-		if !c.Status.Ready && c.Status.Message != "" {
+		if !c.Status.Ready && c.Status.Message != "" && c.Status.Message != "Waiting for certificate to be issued" {
 			lastError = c.Status.Message
 			break
 		}
