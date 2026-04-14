@@ -154,16 +154,23 @@ func (r *CertDaxCertificateReconciler) updateStatus(
 	ready bool,
 	message, commonName, expiresAt string,
 ) {
-	certCR.Status.Ready = ready
-	certCR.Status.Message = message
-	certCR.Status.LastSyncedAt = time.Now().UTC().Format(time.RFC3339)
+	// Re-fetch the latest version to avoid conflict errors
+	latest := &certdaxv1alpha1.CertDaxCertificate{}
+	if err := r.Get(ctx, types.NamespacedName{Name: certCR.Name, Namespace: certCR.Namespace}, latest); err != nil {
+		log.FromContext(ctx).Error(err, "Failed to re-fetch CertDaxCertificate for status update")
+		return
+	}
+
+	latest.Status.Ready = ready
+	latest.Status.Message = message
+	latest.Status.LastSyncedAt = time.Now().UTC().Format(time.RFC3339)
 	if commonName != "" {
-		certCR.Status.CommonName = commonName
+		latest.Status.CommonName = commonName
 	}
 	if expiresAt != "" {
-		certCR.Status.ExpiresAt = expiresAt
+		latest.Status.ExpiresAt = expiresAt
 	}
-	certCR.Status.SecretName = certCR.Spec.SecretName
+	latest.Status.SecretName = certCR.Spec.SecretName
 
 	conditionType := "Ready"
 	conditionStatus := metav1.ConditionFalse
@@ -173,18 +180,18 @@ func (r *CertDaxCertificateReconciler) updateStatus(
 
 	// Update or add condition
 	found := false
-	for i, c := range certCR.Status.Conditions {
+	for i, c := range latest.Status.Conditions {
 		if c.Type == conditionType {
-			certCR.Status.Conditions[i].Status = conditionStatus
-			certCR.Status.Conditions[i].Message = message
-			certCR.Status.Conditions[i].LastTransitionTime = metav1.Now()
-			certCR.Status.Conditions[i].Reason = "Reconciled"
+			latest.Status.Conditions[i].Status = conditionStatus
+			latest.Status.Conditions[i].Message = message
+			latest.Status.Conditions[i].LastTransitionTime = metav1.Now()
+			latest.Status.Conditions[i].Reason = "Reconciled"
 			found = true
 			break
 		}
 	}
 	if !found {
-		certCR.Status.Conditions = append(certCR.Status.Conditions, metav1.Condition{
+		latest.Status.Conditions = append(latest.Status.Conditions, metav1.Condition{
 			Type:               conditionType,
 			Status:             conditionStatus,
 			Message:            message,
@@ -193,7 +200,7 @@ func (r *CertDaxCertificateReconciler) updateStatus(
 		})
 	}
 
-	if err := r.Status().Update(ctx, certCR); err != nil {
+	if err := r.Status().Update(ctx, latest); err != nil {
 		log.FromContext(ctx).Error(err, "Failed to update CertDaxCertificate status")
 	}
 }
