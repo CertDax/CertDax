@@ -11,6 +11,7 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
 - **Self-Signed & CA Signing** — Generate self-signed certificates, create internal CAs, and sign certificates with your own CA
 - **Auto-Renewal** — Automatic certificate renewal with configurable per-certificate thresholds
 - **Deploy Agents** — Lightweight Go agents for automated certificate deployment to servers (amd64, arm64, arm, 386)
+- **Kubernetes Operator** — Helm-based operator that syncs certificates to TLS secrets, supports Traefik IngressRoute & Nginx Ingress, and can request new certificates directly from YAML CRDs
 - **Agent Groups** — Group agents and share certificates across multiple servers
 - **DNS Providers** — Cloudflare, TransIP, Hetzner, DigitalOcean, Vultr, OVH, AWS Route 53, Google Cloud DNS, and manual validation
 - **Multi-Tenant** — Group-based resource isolation with inter-group sharing
@@ -28,6 +29,7 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
 | **Backend** | Python, FastAPI, SQLAlchemy, cryptography |
 | **Database** | PostgreSQL (production) / SQLite (development) |
 | **Agent** | Go (statically linked, zero dependencies) |
+| **K8s Operator** | Go, controller-runtime, Helm |
 | **Infrastructure** | Docker, Docker Compose, Nginx |
 
 ## Quick Start (Docker Compose)
@@ -166,6 +168,133 @@ make build
 # Binaries are in dist/
 ls -la dist/
 ```
+
+## Kubernetes Operator
+
+The CertDax Kubernetes Operator runs in your cluster and synchronises certificates from CertDax into standard `kubernetes.io/tls` secrets. It supports Traefik IngressRoute, Nginx Ingress, and any controller that reads TLS secrets.
+
+### Installation
+
+```bash
+helm repo add certdax https://charts.certdax.com
+helm repo update
+helm install certdax-operator certdax/certdax-operator \
+  --namespace certdax-system --create-namespace \
+  --set certdax.apiUrl=https://certdax.example.com/api \
+  --set certdax.apiKey=YOUR_API_KEY
+```
+
+### Deploy an Existing Certificate
+
+Reference a certificate that already exists in CertDax by its ID:
+
+```yaml
+apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: webapp-cert
+spec:
+  certificateId: 42
+  type: acme
+  secretName: webapp-tls
+```
+
+### Request a Self-Signed Certificate via YAML
+
+Omit `certificateId` (or set it to `0`) and add a `request` block. The operator creates the certificate in CertDax and syncs the TLS secret automatically.
+
+```yaml
+apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: my-selfsigned
+spec:
+  type: selfsigned
+  secretName: my-selfsigned-tls
+  request:
+    commonName: myapp.internal
+    sanDomains: "myapp.internal,*.myapp.internal"
+    validityDays: 365
+    autoRenew: true
+```
+
+### Request a CA-Signed Certificate via YAML
+
+Sign the certificate with an existing CA managed in CertDax:
+
+```yaml
+apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: ca-signed-cert
+spec:
+  type: selfsigned
+  secretName: ca-signed-tls
+  includeCA: true
+  request:
+    commonName: api.internal.example.com
+    sanDomains: "api.internal.example.com,grpc.internal.example.com"
+    caId: 3          # CA certificate ID from CertDax
+    validityDays: 90
+    autoRenew: true
+```
+
+### Request an ACME Certificate via YAML
+
+Request a publicly trusted certificate via Let's Encrypt or another ACME CA:
+
+```yaml
+apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: public-cert
+spec:
+  type: acme
+  secretName: public-tls
+  request:
+    commonName: www.example.com
+    sanDomains: "www.example.com,example.com"
+    providerId: 1    # ACME provider ID from CertDax
+    autoRenew: true
+```
+
+> **Note:** ACME certificates require DNS validation. The operator retries automatically until the certificate is issued.
+
+### Request a Self-Signed CA Certificate via YAML
+
+Create a brand new Certificate Authority from YAML with `isCA: true`. You can then reference this CA's ID in other certificate requests using `caId`.
+
+```yaml
+apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: internal-ca
+spec:
+  type: selfsigned
+  secretName: internal-ca-tls
+  includeCA: true
+  request:
+    commonName: My Internal CA
+    isCA: true
+    validityDays: 3650
+    autoRenew: false
+```
+
+> **Tip:** After creation, check `kubectl describe cdxcert internal-ca` to find the assigned `certificateId` in the status. Use that ID as `caId` in other certificate requests.
+
+### Request Block Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `commonName` | string | *required* | Primary domain / CN |
+| `sanDomains` | string | `""` | Comma-separated SANs |
+| `providerId` | int | — | ACME provider ID (required for `type: acme`) |
+| `caId` | int | — | CA certificate ID (for CA-signed self-signed) |
+| `isCA` | bool | `false` | Create a CA certificate instead of a regular certificate |
+| `autoRenew` | bool | `true` | Enable automatic renewal |
+| `validityDays` | int | `365` | Validity period (self-signed only) |
+
+See the [full documentation](https://certdax.com/docs.html#k8s-overview) for Traefik/Nginx quick starts, TLSStore, dashboard integration, and troubleshooting.
 
 ## DNS Provider Configuration
 

@@ -181,6 +181,7 @@ type CertificateRequestPayload struct {
 	Type         string `json:"type"`
 	ProviderID   int    `json:"provider_id,omitempty"`
 	CaID         int    `json:"ca_id,omitempty"`
+	IsCA         bool   `json:"is_ca"`
 	AutoRenew    bool   `json:"auto_renew"`
 	ValidityDays int    `json:"validity_days,omitempty"`
 }

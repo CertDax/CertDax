@@ -69,6 +69,10 @@ type CertificateRequest struct {
 	// +optional
 	CaID int `json:"caId,omitempty"`
 
+	// IsCA creates a CA certificate instead of a regular certificate.
+	// +optional
+	IsCA bool `json:"isCA,omitempty"`
+
 	// AutoRenew enables automatic renewal of the certificate.
 	// +optional
 	// +kubebuilder:default=true

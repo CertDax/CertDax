@@ -36,7 +36,7 @@ import (
 	"github.com/certdax/kubernetes-operator/internal/logbuffer"
 )
 
-const version = "1.0.0"
+var version = "dev"
 
 var scheme = k8sruntime.NewScheme()
 

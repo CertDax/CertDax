@@ -77,6 +77,7 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 			Type:         certCR.Spec.Type,
 			ProviderID:   certCR.Spec.Request.ProviderID,
 			CaID:         certCR.Spec.Request.CaID,
+			IsCA:         certCR.Spec.Request.IsCA,
 			AutoRenew:    certCR.Spec.Request.AutoRenew,
 			ValidityDays: certCR.Spec.Request.ValidityDays,
 		}

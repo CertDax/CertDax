@@ -58,6 +58,10 @@ spec:
                     caId:
                       type: integer
                       description: "CertDax CA certificate ID to sign with (for type: selfsigned)."
+                    isCA:
+                      type: boolean
+                      description: "Create a CA certificate instead of a regular certificate."
+                      default: false
                     autoRenew:
                       type: boolean
                       description: Enable automatic renewal.

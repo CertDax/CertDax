@@ -116,6 +116,7 @@ class K8sCertificateRequestBody(BaseModel):
     type: str = "selfsigned"  # "selfsigned" or "acme"
     provider_id: int | None = None
     ca_id: int | None = None
+    is_ca: bool = False
     auto_renew: bool = True
     validity_days: int = 365
 
@@ -186,6 +187,7 @@ def request_certificate_from_operator(
             validity_days=body.validity_days,
             auto_renew=body.auto_renew,
             ca_id=body.ca_id,
+            is_ca=body.is_ca,
         )
 
         ca_record = None
@@ -213,7 +215,7 @@ def request_certificate_from_operator(
             key_type="rsa",
             key_size=4096,
             validity_days=body.validity_days,
-            is_ca=False,
+            is_ca=body.is_ca,
             signed_by_ca_id=body.ca_id,
             auto_renew=body.auto_renew,
             certificate_pem=cert_pem,
