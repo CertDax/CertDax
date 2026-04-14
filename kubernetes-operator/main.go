@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strconv"
-	"strings"
+	"syscall"
 	"time"
 
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -139,11 +138,8 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 	logger := ctrl.Log.WithName("heartbeat")
 
 	// Prime CPU measurement before waiting so first heartbeat already has a delta
-	prevCPUTime := readProcCPUTime()
+	prevCPUTime := getProcessCPUTime()
 	prevWall := time.Now()
-	if prevCPUTime < 0 {
-		logger.Info("WARNING: could not read /proc/self/stat for CPU measurement")
-	}
 
 	// Wait a bit for the cache to sync
 	time.Sleep(5 * time.Second)
@@ -155,21 +151,17 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 	defer ticker.Stop()
 
 	for ; true; <-ticker.C {
-		cpuTime := readProcCPUTime()
+		cpuTime := getProcessCPUTime()
 		now := time.Now()
 
 		var cpuPercent string
-		if cpuTime >= 0 && prevCPUTime >= 0 {
-			wallDelta := now.Sub(prevWall).Seconds()
-			if wallDelta > 0 {
-				pct := (cpuTime - prevCPUTime) / wallDelta * 100
-				cpuPercent = fmt.Sprintf("%.1f%%", pct)
-			}
+		wallDelta := now.Sub(prevWall).Seconds()
+		if wallDelta > 0 {
+			pct := (cpuTime - prevCPUTime) / wallDelta * 100
+			cpuPercent = fmt.Sprintf("%.1f%%", pct)
 		}
 		prevCPUTime = cpuTime
 		prevWall = now
-
-		logger.V(1).Info("heartbeat tick", "cpuPercent", cpuPercent, "cpuTime", cpuTime)
 
 		payload := buildHeartbeatPayload(k8sClient, watchNamespace, cpuPercent, logBuf, k8sVersion)
 		if err := heartbeatClient.SendHeartbeat(payload); err != nil {
@@ -178,23 +170,16 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 	}
 }
 
-// readProcCPUTime reads the process CPU time (user + system) in seconds from /proc/self/stat.
-func readProcCPUTime() float64 {
-	data, err := os.ReadFile("/proc/self/stat")
-	if err != nil {
-		return -1
+// getProcessCPUTime returns the process CPU time (user + system) in seconds
+// using the getrusage syscall, which is always available.
+func getProcessCPUTime() float64 {
+	var usage syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage); err != nil {
+		return 0
 	}
-	fields := strings.Fields(string(data))
-	if len(fields) < 15 {
-		return -1
-	}
-	utime, err1 := strconv.ParseFloat(fields[13], 64)
-	stime, err2 := strconv.ParseFloat(fields[14], 64)
-	if err1 != nil || err2 != nil {
-		return -1
-	}
-	// /proc/self/stat times are in clock ticks, typically 100 Hz
-	return (utime + stime) / 100.0
+	userSec := float64(usage.Utime.Sec) + float64(usage.Utime.Usec)/1e6
+	sysSec := float64(usage.Stime.Sec) + float64(usage.Stime.Usec)/1e6
+	return userSec + sysSec
 }
 
 func discoverK8sVersion() string {
