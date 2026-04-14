@@ -8,7 +8,7 @@ rules:
   # CertDaxCertificate resources
   - apiGroups: ["certdax.com"]
     resources: ["certdaxcertificates"]
-    verbs: ["get", "list", "watch", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: ["certdax.com"]
     resources: ["certdaxcertificates/status"]
     verbs: ["get", "update", "patch"]
