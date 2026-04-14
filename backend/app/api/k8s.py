@@ -136,7 +136,7 @@ def request_certificate_from_operator(
         if not body.provider_id:
             raise HTTPException(status_code=400, detail="providerId is required for ACME certificates")
 
-        from app.models.ca_group_account import CertificateAuthority
+        from app.models.certificate import CertificateAuthority
         from app.services.certificate_service import trigger_certificate_request
 
         ca = db.query(CertificateAuthority).filter(
