@@ -21,6 +21,9 @@ import {
   CheckCircle,
   XCircle,
   Globe,
+  BookOpen,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import api from '../services/api';
 import type { K8sOperator } from '../types';
@@ -35,6 +38,7 @@ export default function K8sOperatorDetailPage() {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const prevLogCountRef = useRef(0);
 
@@ -183,6 +187,156 @@ export default function K8sOperatorDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Setup Guide */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+        <button
+          onClick={() => setShowSetupGuide(!showSetupGuide)}
+          className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-slate-50 transition-colors"
+        >
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-indigo-500" />
+            Setup Guide
+          </h2>
+          {showSetupGuide ? (
+            <ChevronDown className="w-5 h-5 text-slate-400" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-slate-400" />
+          )}
+        </button>
+        {showSetupGuide && (
+          <div className="px-6 pb-6 border-t border-slate-100">
+            {/* Step 1 */}
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">1</span>
+                Add the Helm repository
+              </h3>
+              <div className="relative bg-slate-900 rounded-lg p-3">
+                <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
+{`helm repo add certdax https://charts.certdax.com
+helm repo update`}
+                </pre>
+                <button
+                  onClick={() => copyToClipboard('helm repo add certdax https://charts.certdax.com\nhelm repo update', 'step1')}
+                  className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
+                >
+                  {copied === 'step1' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">2</span>
+                Install the operator
+              </h3>
+              <div className="relative bg-slate-900 rounded-lg p-3">
+                <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
+{`helm install certdax-operator certdax/certdax-operator \\
+  --namespace certdax-system --create-namespace \\
+  --set certdax.apiUrl=${window.location.origin}/api \\
+  --set certdax.apiKey=<YOUR_API_KEY> \\
+  --set certdax.operatorToken=<OPERATOR_TOKEN> \\
+  --set clusterName=${operator.cluster_name || 'my-cluster'}`}
+                </pre>
+                <button
+                  onClick={() => copyToClipboard(`helm install certdax-operator certdax/certdax-operator \\\n  --namespace certdax-system --create-namespace \\\n  --set certdax.apiUrl=${window.location.origin}/api \\\n  --set certdax.apiKey=<YOUR_API_KEY> \\\n  --set certdax.operatorToken=<OPERATOR_TOKEN> \\\n  --set clusterName=${operator.cluster_name || 'my-cluster'}`, 'step2')}
+                  className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
+                >
+                  {copied === 'step2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                Replace <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">&lt;YOUR_API_KEY&gt;</code> with your CertDax API key and <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">&lt;OPERATOR_TOKEN&gt;</code> with the token shown when you created this operator.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">3</span>
+                Verify the installation
+              </h3>
+              <div className="relative bg-slate-900 rounded-lg p-3">
+                <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
+{`# Check the operator pod is running
+kubectl get pods -n certdax-system
+
+# Check operator logs
+kubectl logs -n certdax-system -l app.kubernetes.io/name=certdax-operator -f`}
+                </pre>
+                <button
+                  onClick={() => copyToClipboard('kubectl get pods -n certdax-system\nkubectl logs -n certdax-system -l app.kubernetes.io/name=certdax-operator -f', 'step3')}
+                  className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
+                >
+                  {copied === 'step3' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">4</span>
+                Deploy a certificate
+              </h3>
+              <div className="relative bg-slate-900 rounded-lg p-3">
+                <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
+{`apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: my-cert
+spec:
+  certificateId: 42        # Certificate ID from CertDax
+  type: selfsigned          # selfsigned or acme
+  secretName: my-app-tls    # TLS secret to create
+  syncInterval: "1h"        # Re-sync interval`}
+                </pre>
+                <button
+                  onClick={() => copyToClipboard(`apiVersion: certdax.com/v1alpha1
+kind: CertDaxCertificate
+metadata:
+  name: my-cert
+spec:
+  certificateId: 42
+  type: selfsigned
+  secretName: my-app-tls
+  syncInterval: "1h"`, 'step4')}
+                  className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
+                >
+                  {copied === 'step4' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                The operator will fetch the certificate and create a standard <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">kubernetes.io/tls</code> secret. Use it in any Ingress or Traefik IngressRoute.
+              </p>
+            </div>
+
+            {/* Step 5 */}
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">5</span>
+                Check certificate status
+              </h3>
+              <div className="relative bg-slate-900 rounded-lg p-3">
+                <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
+{`kubectl get certdaxcertificates
+# or use the short name:
+kubectl get cdxcert`}
+                </pre>
+                <button
+                  onClick={() => copyToClipboard('kubectl get certdaxcertificates', 'step5')}
+                  className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
+                >
+                  {copied === 'step5' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Info cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
