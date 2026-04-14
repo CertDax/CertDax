@@ -13,6 +13,7 @@ from app.models.agent_group import AgentGroup, AgentGroupMember
 from app.models.api_key import ApiKey
 from app.models.distributed_lock import DistributedLock
 from app.models.ca_group_account import CaGroupAccount
+from app.models.k8s_operator import K8sOperator
 
 __all__ = [
     "Group",
@@ -33,4 +34,5 @@ __all__ = [
     "ApiKey",
     "DistributedLock",
     "CaGroupAccount",
+    "K8sOperator",
 ]

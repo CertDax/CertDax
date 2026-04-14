@@ -10,6 +10,8 @@ import Agents from './pages/Agents';
 import AgentDetail from './pages/AgentDetail';
 import AgentGroups from './pages/AgentGroups';
 import AgentGroupDetail from './pages/AgentGroupDetail';
+import K8sOperators from './pages/K8sOperators';
+import K8sOperatorDetail from './pages/K8sOperatorDetail';
 import SelfSigned from './pages/SelfSigned';
 import SelfSignedDetail from './pages/SelfSignedDetail';
 import Users from './pages/Users';
@@ -46,6 +48,8 @@ export default function App() {
           <Route path="/agents/:id" element={<AgentDetail />} />
           <Route path="/agent-groups" element={<AgentGroups />} />
           <Route path="/agent-groups/:id" element={<AgentGroupDetail />} />
+          <Route path="/k8s-operators" element={<K8sOperators />} />
+          <Route path="/k8s-operators/:id" element={<K8sOperatorDetail />} />
           <Route path="/deployments" element={<Deployments />} />
           <Route path="/self-signed" element={<SelfSigned />} />
           <Route path="/self-signed/:id" element={<SelfSignedDetail />} />

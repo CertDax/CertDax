@@ -1,15 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -18,7 +21,9 @@ import (
 	"github.com/certdax/kubernetes-operator/internal/controller"
 )
 
-var scheme = runtime.NewScheme()
+const version = "1.0.0"
+
+var scheme = k8sruntime.NewScheme()
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -98,10 +103,88 @@ func main() {
 	setupLog.Info("Starting CertDax Kubernetes Operator",
 		"apiURL", apiURL,
 		"syncInterval", defaultSync.String(),
+		"version", version,
 	)
+
+	// Start heartbeat goroutine
+	operatorToken := os.Getenv("CERTDAX_OPERATOR_TOKEN")
+	if operatorToken != "" {
+		heartbeatClient := certdax.NewClient(apiURL, operatorToken)
+		k8sClient := mgr.GetClient()
+		go runHeartbeat(heartbeatClient, k8sClient, namespace, 30*time.Second)
+		setupLog.Info("Heartbeat reporting enabled")
+	} else {
+		setupLog.Info("CERTDAX_OPERATOR_TOKEN not set, heartbeat reporting disabled")
+	}
 
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "Problem running manager")
 		os.Exit(1)
+	}
+}
+
+func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watchNamespace string, interval time.Duration) {
+	logger := ctrl.Log.WithName("heartbeat")
+
+	// Wait a bit for the cache to sync
+	time.Sleep(5 * time.Second)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for ; true; <-ticker.C {
+		payload := buildHeartbeatPayload(k8sClient, watchNamespace)
+		if err := heartbeatClient.SendHeartbeat(payload); err != nil {
+			logger.Error(err, "Failed to send heartbeat")
+		}
+	}
+}
+
+func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string) *certdax.HeartbeatPayload {
+	ctx := context.Background()
+
+	// Count managed CertDaxCertificates
+	var certList certdaxv1alpha1.CertDaxCertificateList
+	listOpts := []client.ListOption{}
+	if watchNamespace != "" {
+		listOpts = append(listOpts, client.InNamespace(watchNamespace))
+	}
+	managed, ready, failed := 0, 0, 0
+	if err := k8sClient.List(ctx, &certList, listOpts...); err == nil {
+		managed = len(certList.Items)
+		for _, c := range certList.Items {
+			if c.Status.Ready {
+				ready++
+			} else {
+				failed++
+			}
+		}
+	}
+
+	// Collect last error from any failed cert
+	var lastError string
+	for _, c := range certList.Items {
+		if !c.Status.Ready && c.Status.Message != "" {
+			lastError = c.Status.Message
+			break
+		}
+	}
+
+	// Get memory stats
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+	return &certdax.HeartbeatPayload{
+		Namespace:           os.Getenv("POD_NAMESPACE"),
+		DeploymentName:      os.Getenv("DEPLOYMENT_NAME"),
+		ClusterName:         os.Getenv("CLUSTER_NAME"),
+		OperatorVersion:     version,
+		PodName:             os.Getenv("POD_NAME"),
+		NodeName:            os.Getenv("NODE_NAME"),
+		MemoryUsage:         fmt.Sprintf("%.1f MiB", float64(memStats.Alloc)/1024/1024),
+		ManagedCertificates: managed,
+		ReadyCertificates:   ready,
+		FailedCertificates:  failed,
+		LastError:           lastError,
 	}
 }

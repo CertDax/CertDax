@@ -13,6 +13,8 @@ from app.api.settings import router as settings_router
 from app.api.oidc import router as oidc_router
 from app.api.api_keys import router as api_keys_router
 from app.api.k8s import router as k8s_router
+from app.api.k8s_operator import router as k8s_operator_router
+from app.api.k8s_operators import router as k8s_operators_router
 from app.api.setup import router as setup_router
 
 api_router = APIRouter()
@@ -30,3 +32,5 @@ api_router.include_router(settings_router, prefix="/settings", tags=["settings"]
 api_router.include_router(oidc_router, prefix="/oidc", tags=["oidc"])
 api_router.include_router(api_keys_router, prefix="/api-keys", tags=["api-keys"])
 api_router.include_router(k8s_router, prefix="/k8s", tags=["kubernetes"])
+api_router.include_router(k8s_operator_router, prefix="/k8s-operator", tags=["k8s-operator"])
+api_router.include_router(k8s_operators_router, prefix="/k8s-operators", tags=["k8s-operators"])

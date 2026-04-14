@@ -17,6 +17,7 @@ import {
   Key,
   Menu,
   X,
+  Container,
 } from 'lucide-react';
 import api from '../services/api';
 import type { User } from '../types';
@@ -27,6 +28,7 @@ const navItems = [
   { to: '/providers', icon: Server, label: 'Providers' },
   { to: '/agents', icon: Monitor, label: 'Agents' },
   { to: '/agent-groups', icon: FolderTree, label: 'Agent Groups' },
+  { to: '/k8s-operators', icon: Container, label: 'K8s Operators' },
   { to: '/deployments', icon: Upload, label: 'Deployments' },
   { to: '/self-signed', icon: FileLock2, label: 'Self-Signed' },
   { to: '/api-keys', icon: Key, label: 'API' },

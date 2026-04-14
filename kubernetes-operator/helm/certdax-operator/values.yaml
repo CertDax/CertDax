@@ -22,6 +22,15 @@ certdax:
   existingSecret: ""
   # Default sync interval for all CertDaxCertificate resources
   syncInterval: "1h"
+  # Operator token for heartbeat reporting (optional)
+  # Register in CertDax UI under K8s Operators, then paste token here
+  operatorToken: ""
+  # Use an existing secret for operator token
+  # The secret must contain a key named "operator-token"
+  existingOperatorTokenSecret: ""
+
+# Cluster name for identification in CertDax dashboard
+clusterName: ""
 
 # Optionally restrict the operator to a single namespace
 # Leave empty to watch all namespaces

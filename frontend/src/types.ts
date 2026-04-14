@@ -207,3 +207,29 @@ export interface AgentGroupDetail extends AgentGroupInfo {
   assigned_certificate_ids: number[];
   assigned_self_signed_ids: number[];
 }
+
+export interface K8sOperator {
+  id: number;
+  name: string;
+  namespace: string | null;
+  deployment_name: string | null;
+  cluster_name: string | null;
+  operator_version: string | null;
+  kubernetes_version: string | null;
+  pod_name: string | null;
+  node_name: string | null;
+  cpu_usage: string | null;
+  memory_usage: string | null;
+  memory_limit: string | null;
+  managed_certificates: number;
+  ready_certificates: number;
+  failed_certificates: number;
+  status: string;
+  last_seen: string | null;
+  last_error: string | null;
+  created_at: string;
+}
+
+export interface K8sOperatorCreate extends K8sOperator {
+  operator_token: string;
+}
