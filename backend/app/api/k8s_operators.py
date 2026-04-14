@@ -334,14 +334,39 @@ def request_cr_deletion(
     op.pending_cr_deletions = json.dumps(pending)
 
     # Also delete the certificate from CertDax itself
+    common_name = None
     if data.certificate_type == "selfsigned":
         cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == data.certificate_id).first()
         if cert:
+            common_name = cert.common_name
             db.delete(cert)
     elif data.certificate_type == "acme":
         cert = db.query(Certificate).filter(Certificate.id == data.certificate_id).first()
         if cert:
+            common_name = cert.common_name
             db.delete(cert)
 
     db.commit()
+
+    # Send email notification
+    if common_name:
+        from app.utils.time import format_now
+        deleted_by = user.display_name or user.username
+        if data.certificate_type == "selfsigned":
+            from app.services.email_service import notify_selfsigned_deleted
+            notify_selfsigned_deleted(
+                group_id=user.group_id,
+                common_name=common_name,
+                deleted_by=deleted_by,
+                deleted_at=format_now(),
+            )
+        elif data.certificate_type == "acme":
+            from app.services.email_service import notify_certificate_deleted
+            notify_certificate_deleted(
+                group_id=user.group_id,
+                common_name=common_name,
+                deleted_by=deleted_by,
+                deleted_at=format_now(),
+            )
+
     return {"status": "queued"}
