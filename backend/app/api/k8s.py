@@ -146,6 +146,18 @@ def request_certificate_from_operator(
         if not ca:
             raise HTTPException(status_code=404, detail="ACME provider (CA) not found")
 
+        # Duplicate prevention: reuse an existing ACME cert with the same
+        # common_name and CA in the same group if it is still valid.
+        from datetime import datetime, timezone
+        existing = db.query(Certificate).filter(
+            Certificate.common_name == body.common_name,
+            Certificate.ca_id == body.provider_id,
+            Certificate.group_id == user.group_id,
+            Certificate.status.in_(["issued", "pending"]),
+        ).first()
+        if existing:
+            return {"id": existing.id, "type": "acme", "status": existing.status}
+
         domains = [body.common_name]
         if body.san_domains:
             domains += [d.strip() for d in body.san_domains.split(",") if d.strip()]

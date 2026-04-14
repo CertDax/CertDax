@@ -5,6 +5,8 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +21,22 @@ import (
 	certdaxv1alpha1 "github.com/certdax/kubernetes-operator/api/v1alpha1"
 	certdaxclient "github.com/certdax/kubernetes-operator/internal/certdax"
 )
+
+// sanitizeSecretName ensures the name is a valid RFC 1123 subdomain.
+var nonAlphanumDot = regexp.MustCompile(`[^a-z0-9.-]`)
+var multiDash = regexp.MustCompile(`-{2,}`)
+
+func SanitizeSecretName(name string) string {
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, "*", "wildcard")
+	name = nonAlphanumDot.ReplaceAllString(name, "-")
+	name = multiDash.ReplaceAllString(name, "-")
+	name = strings.Trim(name, "-.")
+	if name == "" {
+		name = "cert-tls"
+	}
+	return name
+}
 
 // CertDaxCertificateReconciler reconciles a CertDaxCertificate object.
 type CertDaxCertificateReconciler struct {
@@ -175,7 +193,7 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 	// Build the TLS secret
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      certCR.Spec.SecretName,
+			Name:      SanitizeSecretName(certCR.Spec.SecretName),
 			Namespace: secretNamespace,
 		},
 	}
@@ -286,7 +304,7 @@ func (r *CertDaxCertificateReconciler) updateStatusWithReason(
 	if expiresAt != "" {
 		latest.Status.ExpiresAt = expiresAt
 	}
-	latest.Status.SecretName = certCR.Spec.SecretName
+	latest.Status.SecretName = SanitizeSecretName(certCR.Spec.SecretName)
 
 	conditionType := "Ready"
 	conditionStatus := metav1.ConditionFalse

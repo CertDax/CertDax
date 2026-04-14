@@ -824,7 +824,11 @@ kubectl get cdxcert`}
                     if (certId && !deploySecretName) {
                       const cert = availableCerts.find((c) => c.id === certId);
                       if (cert) {
-                        const slug = cert.common_name.replace(/[^a-z0-9.-]/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+                        const slug = cert.common_name
+                          .replace(/^\*\.?/, 'wildcard-')
+                          .replace(/[^a-z0-9.-]/gi, '-')
+                          .replace(/^[-.]+|[-.]+$/g, '')
+                          .toLowerCase();
                         setDeploySecretName(`${slug}-tls`);
                       }
                     }

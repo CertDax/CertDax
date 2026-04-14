@@ -328,7 +328,7 @@ func deleteCertificateCRs(k8sClient client.Client, watchNamespace string, toDele
 			secretNs = cr.Namespace
 		}
 		secret := &corev1.Secret{}
-		secretKey := client.ObjectKey{Namespace: secretNs, Name: cr.Spec.SecretName}
+		secretKey := client.ObjectKey{Namespace: secretNs, Name: controller.SanitizeSecretName(cr.Spec.SecretName)}
 		if err := k8sClient.Get(ctx, secretKey, secret); err == nil {
 			if err := k8sClient.Delete(ctx, secret); err != nil && !k8serrors.IsNotFound(err) {
 				logger.Error(err, "Failed to delete TLS secret", "secret", secretKey)
@@ -449,14 +449,14 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 			certs = append(certs, certdax.ManagedCert{
 				CertificateID:    resolvedID,
 				Type:             c.Spec.Type,
-				SecretName:       c.Spec.SecretName,
+				SecretName:       controller.SanitizeSecretName(c.Spec.SecretName),
 				Namespace:        ns,
 				CommonName:       c.Status.CommonName,
 				Ready:            c.Status.Ready,
 				ExpiresAt:        c.Status.ExpiresAt,
 				LastSyncedAt:     c.Status.LastSyncedAt,
 				Message:          c.Status.Message,
-				Ingresses:        secretToIngresses[ns+"/"+c.Spec.SecretName],
+				Ingresses:        secretToIngresses[ns+"/"+controller.SanitizeSecretName(c.Spec.SecretName)],
 				CRName:           c.Name,
 				DashboardManaged: isDashboardManaged,
 			})
