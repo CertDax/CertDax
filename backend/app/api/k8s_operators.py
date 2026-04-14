@@ -80,6 +80,7 @@ def _operator_response(op: K8sOperator) -> dict:
 
 class K8sOperatorCreate(BaseModel):
     name: str
+    cluster_name: str = ""
 
 
 @router.get("", summary="List K8s operators")
@@ -119,6 +120,7 @@ def create_operator(
 
     op = K8sOperator(
         name=data.name,
+        cluster_name=data.cluster_name or None,
         operator_token_hash=token_hash,
         api_key_id=api_key.id,
         group_id=user.group_id,

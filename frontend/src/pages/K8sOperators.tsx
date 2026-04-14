@@ -20,6 +20,7 @@ export default function K8sOperators() {
 
   // Form state
   const [name, setName] = useState('');
+  const [clusterName, setClusterName] = useState('');
 
   const fetchOperators = async () => {
     const { data } = await api.get('/k8s-operators');
@@ -35,9 +36,10 @@ export default function K8sOperators() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data } = await api.post('/k8s-operators', { name });
+    const { data } = await api.post('/k8s-operators', { name, cluster_name: clusterName });
     setShowAddForm(false);
     setName('');
+    setClusterName('');
     // Navigate to detail page with credentials for setup guide
     navigate(`/k8s-operators/${data.id}`, {
       state: {
@@ -127,6 +129,18 @@ export default function K8sOperators() {
                 placeholder="Production Cluster"
                 className="w-full max-w-md px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                 required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Cluster Name
+              </label>
+              <input
+                type="text"
+                value={clusterName}
+                onChange={(e) => setClusterName(e.target.value)}
+                placeholder="my-cluster"
+                className="w-full max-w-md px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
               />
             </div>
             <div className="flex justify-end gap-2">
