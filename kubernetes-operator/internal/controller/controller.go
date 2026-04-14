@@ -148,6 +148,11 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 			logger.Info("Certificate not yet issued, will retry", "name", certCR.Name, "certificateId", certCR.Spec.CertificateID)
 			return ctrl.Result{RequeueAfter: syncInterval}, nil
 		}
+		if stderrors.Is(err, certdaxclient.ErrNotFound) {
+			r.updateStatus(ctx, &certCR, false, "Certificate not found in CertDax (deleted?)", "", "")
+			logger.Info("Certificate not found (404), stopping reconcile", "name", certCR.Name, "certificateId", certID)
+			return ctrl.Result{}, nil
+		}
 		r.updateStatus(ctx, &certCR, false, fmt.Sprintf("Failed to fetch certificate: %v", err), "", "")
 		logger.Error(err, "Failed to fetch certificate from CertDax")
 		return ctrl.Result{RequeueAfter: syncInterval}, nil
