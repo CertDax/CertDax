@@ -654,6 +654,7 @@ export default function SelfSigned() {
           <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">ID</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Certificate</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created by</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Modified by</th>
@@ -674,6 +675,9 @@ export default function SelfSigned() {
                     className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
                     onClick={() => navigate(`/self-signed/${cert.id}`)}
                   >
+                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">
+                      {cert.id}
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${cert.is_ca ? 'bg-amber-200' : 'bg-amber-100'}`}>

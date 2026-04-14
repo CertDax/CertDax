@@ -35,7 +35,10 @@ export default function CertificateCard({ cert }: { cert: Certificate }) {
         <div className="flex items-start gap-4">
           {getIcon()}
           <div>
-            <h3 className="font-semibold text-slate-900">{cert.common_name}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-slate-900">{cert.common_name}</h3>
+              <span className="text-xs text-slate-400 font-mono">#{cert.id}</span>
+            </div>
             {cert.san_domains && (
               <p className="text-xs text-slate-400 mt-0.5">
                 +{JSON.parse(cert.san_domains).length - 1} SAN domains

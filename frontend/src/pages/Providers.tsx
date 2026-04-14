@@ -286,6 +286,9 @@ export default function Providers() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">
+                  ID
+                </th>
+                <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">
                   Name
                 </th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">
@@ -311,6 +314,9 @@ export default function Providers() {
             <tbody className="divide-y divide-slate-200">
               {cas.map((ca) => (
                 <tr key={ca.id} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 text-sm text-slate-400 font-mono">
+                    {ca.id}
+                  </td>
                   <td className="px-6 py-4 text-sm font-medium text-slate-900">
                     {ca.name}
                   </td>
@@ -608,6 +614,9 @@ export default function Providers() {
             <thead className="bg-slate-50">
               <tr>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">
+                  ID
+                </th>
+                <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">
                   Name
                 </th>
                 <th className="text-left text-xs font-medium text-slate-500 uppercase px-6 py-3">
@@ -624,13 +633,16 @@ export default function Providers() {
             <tbody className="divide-y divide-slate-200">
               {dnsProviders.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
                     No DNS providers configured yet
                   </td>
                 </tr>
               ) : (
                 dnsProviders.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm text-slate-400 font-mono">
+                      {p.id}
+                    </td>
                     <td className="px-6 py-4 text-sm font-medium text-slate-900">
                       {p.name}
                     </td>
