@@ -6,11 +6,6 @@ import {
   Container,
   Wifi,
   WifiOff,
-  Copy,
-  Check,
-  Eye,
-  EyeOff,
-  X,
   ChevronRight,
 } from 'lucide-react';
 import api from '../services/api';
@@ -22,13 +17,6 @@ export default function K8sOperators() {
   const [operators, setOperators] = useState<K8sOperator[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [showTokenModal, setShowTokenModal] = useState<{
-    id: number;
-    name: string;
-    token: string;
-  } | null>(null);
-  const [showToken, setShowToken] = useState(false);
-  const [copied, setCopied] = useState('');
 
   // Form state
   const [name, setName] = useState('');
@@ -49,30 +37,14 @@ export default function K8sOperators() {
     e.preventDefault();
     const { data } = await api.post('/k8s-operators', { name });
     setShowAddForm(false);
-    setShowTokenModal({
-      id: data.id,
-      name: data.name,
-      token: data.operator_token,
-    });
     setName('');
-    fetchOperators();
-  };
-
-  const copyToClipboard = (text: string, key: string) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    setCopied(key);
-    setTimeout(() => setCopied(''), 2000);
+    // Navigate to detail page with credentials for setup guide
+    navigate(`/k8s-operators/${data.id}`, {
+      state: {
+        operatorToken: data.operator_token,
+        apiKey: data.api_key,
+      },
+    });
   };
 
   const onlineCount = operators.filter((o) => o.status === 'online').length;
@@ -265,96 +237,6 @@ export default function K8sOperators() {
           </tbody>
         </table>
       </div>
-
-      {/* Token modal */}
-      {showTokenModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Operator created: {showTokenModal.name}
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Save the operator token — it will only be shown once
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowTokenModal(null);
-                  setShowToken(false);
-                }}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Operator Token
-                </label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-slate-100 rounded-lg px-4 py-3 font-mono text-sm break-all">
-                    {showToken
-                      ? showTokenModal.token
-                      : '•'.repeat(40)}
-                  </div>
-                  <button
-                    onClick={() => setShowToken(!showToken)}
-                    className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
-                    title={showToken ? 'Hide' : 'Show'}
-                  >
-                    {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(showTokenModal.token, 'token')}
-                    className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
-                    title="Copy"
-                  >
-                    {copied === 'token' ? (
-                      <Check className="w-5 h-5 text-emerald-500" />
-                    ) : (
-                      <Copy className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800 font-medium mb-2">Helm install command</p>
-                <div className="bg-slate-900 rounded-lg p-3">
-                  <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
-{`helm install certdax-operator certdax/certdax-operator \\
-  --set certdax.apiUrl=${window.location.origin}/api \\
-  --set certdax.apiKey=<YOUR_API_KEY> \\
-  --set certdax.operatorToken=${showToken ? showTokenModal.token : '<TOKEN>'} \\
-  --set clusterName=my-cluster`}
-                  </pre>
-                </div>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-xs text-amber-800">
-                  <strong>Warning:</strong> This token is only shown once. If you lose it,
-                  you can regenerate it from the operator detail page.
-                </p>
-              </div>
-            </div>
-            <div className="p-6 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowTokenModal(null);
-                  setShowToken(false);
-                }}
-                className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
   ArrowLeft,
@@ -32,6 +32,7 @@ import StatusBadge from '../components/StatusBadge';
 export default function K8sOperatorDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [operator, setOperator] = useState<K8sOperator | null>(null);
   const [loading, setLoading] = useState(true);
   const [newToken, setNewToken] = useState('');
@@ -41,6 +42,14 @@ export default function K8sOperatorDetailPage() {
   const [showSetupGuide, setShowSetupGuide] = useState<boolean | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
   const prevLogCountRef = useRef(0);
+
+  // Credentials passed from create flow (only available once)
+  const initialCredentials = useRef(
+    (location.state as { operatorToken?: string; apiKey?: string } | null) ?? {}
+  );
+  const [credentials] = useState<{ operatorToken?: string; apiKey?: string }>(
+    initialCredentials.current
+  );
 
   const fetchOperator = async () => {
     try {
@@ -248,20 +257,26 @@ helm repo update`}
 {`helm install certdax-operator certdax/certdax-operator \\
   --namespace certdax-system --create-namespace \\
   --set certdax.apiUrl=${window.location.origin}/api \\
-  --set certdax.apiKey=<YOUR_API_KEY> \\
-  --set certdax.operatorToken=<OPERATOR_TOKEN> \\
+  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} \\
+  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} \\
   --set clusterName=${operator.cluster_name || 'my-cluster'}`}
                 </pre>
                 <button
-                  onClick={() => copyToClipboard(`helm install certdax-operator certdax/certdax-operator \\\n  --namespace certdax-system --create-namespace \\\n  --set certdax.apiUrl=${window.location.origin}/api \\\n  --set certdax.apiKey=<YOUR_API_KEY> \\\n  --set certdax.operatorToken=<OPERATOR_TOKEN> \\\n  --set clusterName=${operator.cluster_name || 'my-cluster'}`, 'step2')}
+                  onClick={() => copyToClipboard(`helm install certdax-operator certdax/certdax-operator \\\n  --namespace certdax-system --create-namespace \\\n  --set certdax.apiUrl=${window.location.origin}/api \\\n  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} \\\n  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} \\\n  --set clusterName=${operator.cluster_name || 'my-cluster'}`, 'step2')}
                   className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
                 >
                   {copied === 'step2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
-              <p className="text-xs text-slate-500 mt-2">
-                Replace <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">&lt;YOUR_API_KEY&gt;</code> with your CertDax API key and <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">&lt;OPERATOR_TOKEN&gt;</code> with the token shown when you created this operator.
-              </p>
+              {credentials.apiKey && credentials.operatorToken ? (
+                <p className="text-xs text-emerald-600 mt-2">
+                  API key and operator token are pre-filled. You can copy the command above and run it directly.
+                </p>
+              ) : (
+                <p className="text-xs text-slate-500 mt-2">
+                  Replace <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">&lt;YOUR_API_KEY&gt;</code> with your CertDax API key and <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">&lt;OPERATOR_TOKEN&gt;</code> with the token shown when you created this operator.
+                </p>
+              )}
             </div>
 
             {/* Step 3 */}

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, visible_group_ids
 from app.database import get_db
+from app.models.api_key import ApiKey
 from app.models.k8s_operator import K8sOperator
 from app.models.user import User
 from app.utils.crypto import hash_token
@@ -102,9 +103,21 @@ def create_operator(
     token = "k8s_" + secrets.token_hex(32)
     token_hash = hash_token(token)
 
+    # Auto-create a dedicated API key for this operator
+    raw_api_key = f"cm_{secrets.token_hex(32)}"
+    api_key = ApiKey(
+        user_id=user.id,
+        name=f"K8s Operator: {data.name}",
+        key_hash=hash_token(raw_api_key),
+        key_prefix=raw_api_key[:12],
+    )
+    db.add(api_key)
+    db.flush()
+
     op = K8sOperator(
         name=data.name,
         operator_token_hash=token_hash,
+        api_key_id=api_key.id,
         group_id=user.group_id,
         created_at=datetime.now(timezone.utc),
     )
@@ -114,6 +127,7 @@ def create_operator(
 
     resp = _operator_response(op)
     resp["operator_token"] = token
+    resp["api_key"] = raw_api_key
     return resp
 
 
@@ -148,6 +162,11 @@ def delete_operator(
     )
     if not op:
         raise HTTPException(status_code=404, detail="Operator not found")
+    # Delete the linked API key
+    if op.api_key_id:
+        linked_key = db.query(ApiKey).filter(ApiKey.id == op.api_key_id).first()
+        if linked_key:
+            db.delete(linked_key)
     db.delete(op)
     db.commit()
     return {"status": "deleted"}

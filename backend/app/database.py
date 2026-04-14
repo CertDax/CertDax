@@ -263,6 +263,9 @@ def _migrate_db():
         if "managed_certs_json" not in existing_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN managed_certs_json TEXT"))
+        if "api_key_id" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN api_key_id INTEGER REFERENCES api_keys(id) ON DELETE SET NULL"))
 
 
 def init_db():
