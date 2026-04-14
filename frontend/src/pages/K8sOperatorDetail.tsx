@@ -63,11 +63,17 @@ export default function K8sOperatorDetailPage() {
   const [deployIncludeCA, setDeployIncludeCA] = useState(true);
   const [deploySubmitting, setDeploySubmitting] = useState(false);
   const [availableCerts, setAvailableCerts] = useState<(Certificate | SelfSignedCertificate)[]>([]);
+  const [deployments, setDeployments] = useState<{ id: number; certificate_id: number; certificate_type: string; secret_name: string; namespace: string }[]>([]);
 
   const fetchOperator = async () => {
     try {
       const { data } = await api.get(`/k8s-operators/${id}`);
       setOperator(data);
+      // Also fetch deployments so we know the deployment IDs for delete
+      try {
+        const { data: deps } = await api.get(`/k8s-operators/${id}/deployments`);
+        setDeployments(deps);
+      } catch {}
     } catch {
       navigate('/k8s-operators');
     }
@@ -154,6 +160,18 @@ export default function K8sOperatorDetailPage() {
       setAvailableCerts(data);
     } catch {
       setAvailableCerts([]);
+    }
+  };
+
+  const handleDeleteDeployment = async (certId: number, certType: string) => {
+    const dep = deployments.find(d => d.certificate_id === certId && d.certificate_type === certType);
+    if (!dep) return;
+    if (!confirm('Remove this certificate deployment? The operator will delete the TLS secret from the cluster.')) return;
+    try {
+      await api.delete(`/k8s-operators/${id}/deployments/${dep.id}`);
+      fetchOperator();
+    } catch (err) {
+      console.error('Delete deployment failed', err);
     }
   };
 
@@ -637,6 +655,7 @@ kubectl get cdxcert`}
                   <th className="px-6 py-3">Ingress</th>
                   <th className="px-6 py-3">Expires</th>
                   <th className="px-6 py-3">Last Synced</th>
+                  <th className="px-6 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -693,6 +712,15 @@ kubectl get cdxcert`}
                       {cert.last_synced_at
                         ? format(new Date(cert.last_synced_at), 'd MMM yyyy HH:mm')
                         : '-'}
+                    </td>
+                    <td className="px-6 py-3">
+                      <button
+                        onClick={() => handleDeleteDeployment(cert.certificate_id, cert.type)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Remove deployment"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))}
