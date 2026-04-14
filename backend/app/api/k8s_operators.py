@@ -17,6 +17,8 @@ from app.database import get_db
 from app.models.api_key import ApiKey
 from app.models.k8s_operator import K8sOperator
 from app.models.k8s_deployment import K8sDeployment
+from app.models.selfsigned import SelfSignedCertificate
+from app.models.certificate import Certificate
 from app.models.user import User
 from app.utils.crypto import hash_token
 
@@ -330,5 +332,16 @@ def request_cr_deletion(
     if entry not in pending:
         pending.append(entry)
     op.pending_cr_deletions = json.dumps(pending)
+
+    # Also delete the certificate from CertDax itself
+    if data.certificate_type == "selfsigned":
+        cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == data.certificate_id).first()
+        if cert:
+            db.delete(cert)
+    elif data.certificate_type == "acme":
+        cert = db.query(Certificate).filter(Certificate.id == data.certificate_id).first()
+        if cert:
+            db.delete(cert)
+
     db.commit()
     return {"status": "queued"}

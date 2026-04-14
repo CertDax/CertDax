@@ -168,6 +168,15 @@ def request_certificate_from_operator(
 
         trigger_certificate_request(new_cert.id)
 
+        from app.services.email_service import notify_certificate_requested
+        from app.utils.time import format_now
+        notify_certificate_requested(
+            group_id=user.group_id,
+            common_name=new_cert.common_name,
+            requested_by=user.display_name or user.username,
+            requested_at=format_now(),
+        )
+
         return {"id": new_cert.id, "type": "acme", "status": "pending"}
 
     else:
@@ -176,6 +185,17 @@ def request_certificate_from_operator(
         from app.utils.crypto import encrypt
         from app.schemas.selfsigned import SelfSignedRequest
         from datetime import datetime, timezone, timedelta
+
+        # Duplicate prevention: check if a self-signed cert with the same
+        # common_name, is_ca, and ca_id already exists in the same group.
+        existing = db.query(SelfSignedCertificate).filter(
+            SelfSignedCertificate.common_name == body.common_name,
+            SelfSignedCertificate.is_ca == body.is_ca,
+            SelfSignedCertificate.signed_by_ca_id == body.ca_id,
+            SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed")),
+        ).first()
+        if existing:
+            return {"id": existing.id, "type": "selfsigned", "status": "issued"}
 
         san_list = None
         if body.san_domains:
@@ -228,5 +248,14 @@ def request_certificate_from_operator(
         db.add(new_cert)
         db.commit()
         db.refresh(new_cert)
+
+        from app.services.email_service import notify_selfsigned_created
+        from app.utils.time import format_now
+        notify_selfsigned_created(
+            group_id=user.group_id,
+            common_name=new_cert.common_name,
+            created_by=user.display_name or user.username,
+            created_at=format_now(),
+        )
 
         return {"id": new_cert.id, "type": "selfsigned", "status": "issued"}
