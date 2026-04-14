@@ -95,7 +95,7 @@ type HeartbeatPayload struct {
 
 // SendHeartbeat sends operator status to the CertDax backend.
 func (c *Client) SendHeartbeat(payload *HeartbeatPayload) error {
-	url := fmt.Sprintf("%s/api/k8s-operator/heartbeat", c.BaseURL)
+	url := fmt.Sprintf("%s/k8s-operator/heartbeat", c.BaseURL)
 
 	body, err := json.Marshal(payload)
 	if err != nil {
