@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.k8s_operator import K8sOperator
+from app.models.k8s_deployment import K8sDeployment
 from app.utils.crypto import hash_token
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -85,4 +86,23 @@ def heartbeat(
     operator.status = "online"
     operator.last_seen = datetime.now(timezone.utc)
     db.commit()
-    return {"status": "ok"}
+
+    # Return desired certificate deployments so the operator can reconcile CRs
+    deployments = (
+        db.query(K8sDeployment)
+        .filter(K8sDeployment.operator_id == operator.id)
+        .all()
+    )
+    desired = [
+        {
+            "id": d.id,
+            "certificate_id": d.certificate_id,
+            "type": d.certificate_type,
+            "secret_name": d.secret_name,
+            "namespace": d.namespace,
+            "sync_interval": d.sync_interval,
+            "include_ca": d.include_ca,
+        }
+        for d in deployments
+    ]
+    return {"status": "ok", "desired_certificates": desired}

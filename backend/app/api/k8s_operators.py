@@ -16,6 +16,7 @@ from app.api.deps import get_current_user, visible_group_ids
 from app.database import get_db
 from app.models.api_key import ApiKey
 from app.models.k8s_operator import K8sOperator
+from app.models.k8s_deployment import K8sDeployment
 from app.models.user import User
 from app.utils.crypto import hash_token
 
@@ -191,3 +192,110 @@ def regenerate_token(
     op.operator_token_hash = hash_token(token)
     db.commit()
     return {"operator_token": token}
+
+
+# --- K8s certificate deployments (push certs to operator) ---
+
+
+class K8sDeploymentCreate(BaseModel):
+    certificate_id: int
+    certificate_type: str = "selfsigned"
+    secret_name: str
+    namespace: str = "default"
+    sync_interval: str = "1h"
+    include_ca: bool = True
+
+
+def _deployment_response(d: K8sDeployment) -> dict:
+    return {
+        "id": d.id,
+        "operator_id": d.operator_id,
+        "certificate_id": d.certificate_id,
+        "certificate_type": d.certificate_type,
+        "secret_name": d.secret_name,
+        "namespace": d.namespace,
+        "sync_interval": d.sync_interval,
+        "include_ca": d.include_ca,
+        "created_at": d.created_at.isoformat() if d.created_at else None,
+    }
+
+
+@router.get("/{operator_id}/deployments", summary="List certificate deployments for operator")
+def list_deployments(
+    operator_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    gids = visible_group_ids(db, user, "k8s_operators")
+    op = (
+        db.query(K8sOperator)
+        .filter(K8sOperator.id == operator_id, K8sOperator.group_id.in_(gids))
+        .first()
+    )
+    if not op:
+        raise HTTPException(status_code=404, detail="Operator not found")
+    deployments = (
+        db.query(K8sDeployment)
+        .filter(K8sDeployment.operator_id == operator_id)
+        .order_by(K8sDeployment.created_at)
+        .all()
+    )
+    return [_deployment_response(d) for d in deployments]
+
+
+@router.post("/{operator_id}/deployments", summary="Deploy a certificate to the K8s operator")
+def create_deployment(
+    operator_id: int,
+    data: K8sDeploymentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    gids = visible_group_ids(db, user, "k8s_operators")
+    op = (
+        db.query(K8sOperator)
+        .filter(K8sOperator.id == operator_id, K8sOperator.group_id.in_(gids))
+        .first()
+    )
+    if not op:
+        raise HTTPException(status_code=404, detail="Operator not found")
+
+    dep = K8sDeployment(
+        operator_id=operator_id,
+        certificate_id=data.certificate_id,
+        certificate_type=data.certificate_type,
+        secret_name=data.secret_name,
+        namespace=data.namespace,
+        sync_interval=data.sync_interval,
+        include_ca=data.include_ca,
+    )
+    db.add(dep)
+    db.commit()
+    db.refresh(dep)
+    return _deployment_response(dep)
+
+
+@router.delete("/{operator_id}/deployments/{deployment_id}", summary="Remove a certificate deployment")
+def delete_deployment(
+    operator_id: int,
+    deployment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    gids = visible_group_ids(db, user, "k8s_operators")
+    op = (
+        db.query(K8sOperator)
+        .filter(K8sOperator.id == operator_id, K8sOperator.group_id.in_(gids))
+        .first()
+    )
+    if not op:
+        raise HTTPException(status_code=404, detail="Operator not found")
+    dep = (
+        db.query(K8sDeployment)
+        .filter(K8sDeployment.id == deployment_id, K8sDeployment.operator_id == operator_id)
+        .first()
+    )
+    if not dep:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    db.delete(dep)
+    db.commit()
+    return {"status": "deleted"}

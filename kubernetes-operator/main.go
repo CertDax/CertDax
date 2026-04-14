@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
 	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -20,9 +22,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"k8s.io/client-go/discovery"
 
+	"github.com/go-logr/logr"
 	uzap "go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -168,8 +172,107 @@ func runHeartbeat(heartbeatClient *certdax.Client, k8sClient client.Client, watc
 		prevWall = now
 
 		payload := buildHeartbeatPayload(k8sClient, watchNamespace, cpuPercent, logBuf, k8sVersion)
-		if err := heartbeatClient.SendHeartbeat(payload); err != nil {
+		hbResp, err := heartbeatClient.SendHeartbeat(payload)
+		if err != nil {
 			logger.Error(err, "Failed to send heartbeat")
+			continue
+		}
+
+		// Reconcile desired certificates from the dashboard
+		if len(hbResp.DesiredCertificates) > 0 || true {
+			reconcileDesiredCertificates(k8sClient, watchNamespace, hbResp.DesiredCertificates, logger)
+		}
+	}
+}
+
+const dashboardManagedLabel = "certdax.com/dashboard-managed"
+
+// reconcileDesiredCertificates ensures the cluster matches the desired state from the CertDax dashboard.
+// It creates missing CertDaxCertificate CRs and deletes ones removed from the dashboard.
+// Only CRs with the "certdax.com/dashboard-managed" label are managed; manually-created CRs are untouched.
+func reconcileDesiredCertificates(k8sClient client.Client, watchNamespace string, desired []certdax.DesiredCertificate, logger logr.Logger) {
+	ctx := context.Background()
+
+	// Build a set of desired deployment IDs
+	desiredByID := make(map[int]certdax.DesiredCertificate, len(desired))
+	for _, d := range desired {
+		desiredByID[d.ID] = d
+	}
+
+	// List all dashboard-managed CertDaxCertificates
+	var certList certdaxv1alpha1.CertDaxCertificateList
+	listOpts := []client.ListOption{
+		client.MatchingLabels{dashboardManagedLabel: "true"},
+	}
+	if watchNamespace != "" {
+		listOpts = append(listOpts, client.InNamespace(watchNamespace))
+	}
+	if err := k8sClient.List(ctx, &certList, listOpts...); err != nil {
+		logger.Error(err, "Failed to list dashboard-managed CertDaxCertificates")
+		return
+	}
+
+	// Track existing deployment IDs in cluster
+	existingIDs := make(map[int]certdaxv1alpha1.CertDaxCertificate)
+	for _, cr := range certList.Items {
+		if idStr, ok := cr.Labels["certdax.com/deployment-id"]; ok {
+			if id, err := strconv.Atoi(idStr); err == nil {
+				existingIDs[id] = cr
+			}
+		}
+	}
+
+	// Create missing CRs
+	for id, d := range desiredByID {
+		if _, exists := existingIDs[id]; exists {
+			continue
+		}
+		ns := d.Namespace
+		if ns == "" {
+			ns = "default"
+		}
+		crName := fmt.Sprintf("cdx-deploy-%d", id)
+
+		cr := &certdaxv1alpha1.CertDaxCertificate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      crName,
+				Namespace: ns,
+				Labels: map[string]string{
+					dashboardManagedLabel:     "true",
+					"certdax.com/deployment-id": strconv.Itoa(id),
+				},
+			},
+			Spec: certdaxv1alpha1.CertDaxCertificateSpec{
+				CertificateID: d.CertificateID,
+				Type:          d.Type,
+				SecretName:    d.SecretName,
+				SyncInterval:  d.SyncInterval,
+				IncludeCA:     d.IncludeCA,
+			},
+		}
+
+		if err := k8sClient.Create(ctx, cr); err != nil {
+			if k8serrors.IsAlreadyExists(err) {
+				continue
+			}
+			logger.Error(err, "Failed to create CertDaxCertificate from dashboard", "name", crName, "namespace", ns)
+		} else {
+			logger.Info("Created CertDaxCertificate from dashboard", "name", crName, "namespace", ns, "certificateId", d.CertificateID)
+		}
+	}
+
+	// Delete CRs that are no longer desired
+	for id, cr := range existingIDs {
+		if _, wanted := desiredByID[id]; wanted {
+			continue
+		}
+		crCopy := cr
+		if err := k8sClient.Delete(ctx, &crCopy); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				logger.Error(err, "Failed to delete CertDaxCertificate removed from dashboard", "name", cr.Name, "namespace", cr.Namespace)
+			}
+		} else {
+			logger.Info("Deleted CertDaxCertificate removed from dashboard", "name", cr.Name, "namespace", cr.Namespace)
 		}
 	}
 }

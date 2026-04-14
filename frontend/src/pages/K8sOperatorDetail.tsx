@@ -24,9 +24,11 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  Plus,
+  X,
 } from 'lucide-react';
 import api from '../services/api';
-import type { K8sOperator } from '../types';
+import type { K8sOperator, Certificate, SelfSignedCertificate } from '../types';
 import StatusBadge from '../components/StatusBadge';
 
 export default function K8sOperatorDetailPage() {
@@ -50,6 +52,17 @@ export default function K8sOperatorDetailPage() {
   const [credentials] = useState<{ operatorToken?: string; apiKey?: string }>(
     initialCredentials.current
   );
+
+  // Deploy certificate modal state
+  const [showDeployModal, setShowDeployModal] = useState(false);
+  const [deployCertType, setDeployCertType] = useState<'selfsigned' | 'acme'>('selfsigned');
+  const [deployCertId, setDeployCertId] = useState<number | ''>('');
+  const [deploySecretName, setDeploySecretName] = useState('');
+  const [deployNamespace, setDeployNamespace] = useState('default');
+  const [deploySyncInterval, setDeploySyncInterval] = useState('1h');
+  const [deployIncludeCA, setDeployIncludeCA] = useState(true);
+  const [deploySubmitting, setDeploySubmitting] = useState(false);
+  const [availableCerts, setAvailableCerts] = useState<(Certificate | SelfSignedCertificate)[]>([]);
 
   const fetchOperator = async () => {
     try {
@@ -113,6 +126,54 @@ export default function K8sOperatorDetailPage() {
     }
     setCopied(key);
     setTimeout(() => setCopied(''), 2000);
+  };
+
+  const openDeployModal = async () => {
+    setDeployCertType('selfsigned');
+    setDeployCertId('');
+    setDeploySecretName('');
+    setDeployNamespace('default');
+    setDeploySyncInterval('1h');
+    setDeployIncludeCA(true);
+    setShowDeployModal(true);
+    // Fetch available certificates
+    try {
+      const { data } = await api.get('/self-signed');
+      setAvailableCerts(data);
+    } catch {
+      setAvailableCerts([]);
+    }
+  };
+
+  const onDeployCertTypeChange = async (type: 'selfsigned' | 'acme') => {
+    setDeployCertType(type);
+    setDeployCertId('');
+    try {
+      const endpoint = type === 'selfsigned' ? '/self-signed' : '/certificates';
+      const { data } = await api.get(endpoint);
+      setAvailableCerts(data);
+    } catch {
+      setAvailableCerts([]);
+    }
+  };
+
+  const handleDeploy = async () => {
+    if (!deployCertId || !deploySecretName) return;
+    setDeploySubmitting(true);
+    try {
+      await api.post(`/k8s-operators/${id}/deployments`, {
+        certificate_id: deployCertId,
+        certificate_type: deployCertType,
+        secret_name: deploySecretName,
+        namespace: deployNamespace,
+        sync_interval: deploySyncInterval,
+        include_ca: deployIncludeCA,
+      });
+      setShowDeployModal(false);
+    } catch (err) {
+      console.error('Deploy failed', err);
+    }
+    setDeploySubmitting(false);
   };
 
   if (loading) {
@@ -548,7 +609,7 @@ kubectl get cdxcert`}
 
       {/* Deployed Certificates */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
             <Lock className="w-5 h-5 text-blue-500" />
             Deployed Certificates
@@ -556,6 +617,13 @@ kubectl get cdxcert`}
               ({operator.certificates?.length || 0})
             </span>
           </h2>
+          <button
+            onClick={openDeployModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Deploy Certificate
+          </button>
         </div>
         {operator.certificates && operator.certificates.length > 0 ? (
           <div className="overflow-x-auto">
@@ -654,6 +722,139 @@ kubectl get cdxcert`}
           </div>
         </dl>
       </div>
+
+      {/* Deploy Certificate Modal */}
+      {showDeployModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900">Deploy Certificate to Cluster</h3>
+              <button onClick={() => setShowDeployModal(false)} className="p-1 text-slate-400 hover:text-slate-600 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              {/* Certificate type */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Certificate Type</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onDeployCertTypeChange('selfsigned')}
+                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border transition-colors ${
+                      deployCertType === 'selfsigned'
+                        ? 'bg-violet-50 border-violet-300 text-violet-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Self-Signed / CA
+                  </button>
+                  <button
+                    onClick={() => onDeployCertTypeChange('acme')}
+                    className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg border transition-colors ${
+                      deployCertType === 'acme'
+                        ? 'bg-blue-50 border-blue-300 text-blue-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    ACME (Let's Encrypt)
+                  </button>
+                </div>
+              </div>
+
+              {/* Certificate select */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Certificate</label>
+                <select
+                  value={deployCertId}
+                  onChange={(e) => {
+                    const certId = Number(e.target.value);
+                    setDeployCertId(certId || '');
+                    if (certId && !deploySecretName) {
+                      const cert = availableCerts.find((c) => c.id === certId);
+                      if (cert) {
+                        const slug = cert.common_name.replace(/[^a-z0-9.-]/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+                        setDeploySecretName(`${slug}-tls`);
+                      }
+                    }
+                  }}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                >
+                  <option value="">Select a certificate…</option>
+                  {availableCerts.map((cert) => (
+                    <option key={cert.id} value={cert.id}>
+                      {cert.common_name} (ID: {cert.id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Secret name */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Secret Name</label>
+                <input
+                  type="text"
+                  value={deploySecretName}
+                  onChange={(e) => setDeploySecretName(e.target.value)}
+                  placeholder="my-cert-tls"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Namespace */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Namespace</label>
+                <input
+                  type="text"
+                  value={deployNamespace}
+                  onChange={(e) => setDeployNamespace(e.target.value)}
+                  placeholder="default"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Advanced: sync interval + include CA */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Sync Interval</label>
+                  <input
+                    type="text"
+                    value={deploySyncInterval}
+                    onChange={(e) => setDeploySyncInterval(e.target.value)}
+                    placeholder="1h"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                </div>
+                <div className="flex items-end pb-1">
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={deployIncludeCA}
+                      onChange={(e) => setDeployIncludeCA(e.target.checked)}
+                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    Include CA chain
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeployModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeploy}
+                disabled={!deployCertId || !deploySecretName || deploySubmitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                {deploySubmitting ? 'Deploying…' : 'Deploy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -267,6 +267,27 @@ def _migrate_db():
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN api_key_id INTEGER REFERENCES api_keys(id) ON DELETE SET NULL"))
 
+    # --- K8s deployments table ---
+    if "k8s_deployments" not in existing_tables:
+        if _is_sqlite:
+            pk_def = "id INTEGER PRIMARY KEY"
+        else:
+            pk_def = "id SERIAL PRIMARY KEY"
+        with engine.begin() as conn:
+            conn.execute(text(f"""
+                CREATE TABLE k8s_deployments (
+                    {pk_def},
+                    operator_id INTEGER NOT NULL REFERENCES k8s_operators(id) ON DELETE CASCADE,
+                    certificate_id INTEGER NOT NULL,
+                    certificate_type VARCHAR(20) NOT NULL DEFAULT 'selfsigned',
+                    secret_name VARCHAR(255) NOT NULL,
+                    namespace VARCHAR(255) NOT NULL DEFAULT 'default',
+                    sync_interval VARCHAR(20) NOT NULL DEFAULT '1h',
+                    include_ca BOOLEAN NOT NULL DEFAULT TRUE,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+
 
 def init_db():
     import app.models  # noqa: F401

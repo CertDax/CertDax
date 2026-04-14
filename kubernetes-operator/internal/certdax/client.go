@@ -109,32 +109,60 @@ type HeartbeatPayload struct {
 	RecentLogs          []string      `json:"recent_logs,omitempty"`
 }
 
+// DesiredCertificate represents a certificate deployment requested via the dashboard.
+type DesiredCertificate struct {
+	ID            int    `json:"id"`
+	CertificateID int    `json:"certificate_id"`
+	Type          string `json:"type"`
+	SecretName    string `json:"secret_name"`
+	Namespace     string `json:"namespace"`
+	SyncInterval  string `json:"sync_interval"`
+	IncludeCA     bool   `json:"include_ca"`
+}
+
+// HeartbeatResponse is the JSON response from the heartbeat endpoint.
+type HeartbeatResponse struct {
+	Status              string               `json:"status"`
+	DesiredCertificates []DesiredCertificate  `json:"desired_certificates,omitempty"`
+}
+
 // SendHeartbeat sends operator status to the CertDax backend.
-func (c *Client) SendHeartbeat(payload *HeartbeatPayload) error {
+// Returns the response containing any desired certificate deployments.
+func (c *Client) SendHeartbeat(payload *HeartbeatPayload) (*HeartbeatResponse, error) {
 	url := fmt.Sprintf("%s/k8s-operator/heartbeat", c.BaseURL)
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("marshalling heartbeat: %w", err)
+		return nil, fmt.Errorf("marshalling heartbeat: %w", err)
 	}
 
 	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("creating heartbeat request: %w", err)
+		return nil, fmt.Errorf("creating heartbeat request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("sending heartbeat: %w", err)
+		return nil, fmt.Errorf("sending heartbeat: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("heartbeat returned %d: %s", resp.StatusCode, string(respBody))
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading heartbeat response: %w", err)
 	}
 
-	return nil
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("heartbeat returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var hbResp HeartbeatResponse
+	if err := json.Unmarshal(respBody, &hbResp); err != nil {
+		// Non-fatal: older backends may not return the new format
+		return &HeartbeatResponse{Status: "ok"}, nil
+	}
+
+	return &hbResp, nil
 }
