@@ -119,12 +119,16 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 
-		// Now update status
-		if err := r.Get(ctx, req.NamespacedName, latest); err == nil {
-			latest.Status.CertificateID = certID
-			latest.Status.Message = fmt.Sprintf("Certificate requested (id=%d), waiting for issuance", certID)
-			if err := r.Status().Update(ctx, latest); err != nil {
-				logger.Error(err, "Failed to update status with certificate ID, will recover from annotation")
+		// Now update status (retry once on conflict since the annotation update just changed the resource)
+		for attempt := 0; attempt < 2; attempt++ {
+			fresh := &certdaxv1alpha1.CertDaxCertificate{}
+			if err := r.Get(ctx, req.NamespacedName, fresh); err != nil {
+				break
+			}
+			fresh.Status.CertificateID = certID
+			fresh.Status.Message = fmt.Sprintf("Certificate requested (id=%d), waiting for issuance", certID)
+			if err := r.Status().Update(ctx, fresh); err == nil {
+				break
 			}
 		}
 

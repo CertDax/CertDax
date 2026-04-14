@@ -15,7 +15,7 @@ rules:
   # TLS Secrets
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "watch", "create", "update", "patch"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Events
   - apiGroups: [""]
     resources: ["events"]
