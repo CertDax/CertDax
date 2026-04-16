@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import type { Notification } from '../types';
 
-const POLL_INTERVAL = 30_000;
+const POLL_INTERVAL = 10_000;
 const TOAST_DURATION = 6_000;
 
 function getNotificationIcon(type: string, size = 'w-4 h-4') {
@@ -35,7 +35,7 @@ export default function NotificationBell() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const prevUnreadRef = useRef<number | null>(null);
+  const lastSeenIdRef = useRef<number | null>(null);
   const navigate = useNavigate();
 
   // Show custom permission prompt after 2s if not yet answered
@@ -75,27 +75,36 @@ export default function NotificationBell() {
   }, []);
 
   const fetchUnreadCount = useCallback(() => {
-    api.get('/notifications/unread-count')
-      .then(({ data }) => {
-        const newCount = data.unread;
-        if (prevUnreadRef.current !== null && newCount > prevUnreadRef.current) {
-          // New notification arrived - show toast + optional browser notification
-          api.get('/notifications?limit=5').then(({ data: notifs }) => {
-            const latest = notifs.find((n: Notification) => !n.is_read);
-            if (latest) {
-              addToast(latest);
+    api.get('/notifications?limit=5')
+      .then(({ data: notifs }) => {
+        // Count unread
+        const unread = notifs.filter((n: Notification) => !n.is_read).length;
+        // Also fetch full unread count from server
+        api.get('/notifications/unread-count').then(({ data }) => {
+          setUnreadCount(data.unread);
+        }).catch(() => setUnreadCount(unread));
+
+        // Detect new notifications by checking if the latest ID changed
+        if (notifs.length > 0) {
+          const latestId = notifs[0].id;
+          if (lastSeenIdRef.current !== null && latestId > lastSeenIdRef.current) {
+            // Find all new notifications we haven't seen
+            const newNotifs = notifs.filter(
+              (n: Notification) => n.id > (lastSeenIdRef.current ?? 0) && !n.is_read
+            );
+            for (const notif of newNotifs.slice(0, 3)) {
+              addToast(notif);
               if ('Notification' in window && window.Notification.permission === 'granted') {
-                new window.Notification(latest.title, {
-                  body: latest.message,
+                new window.Notification(notif.title, {
+                  body: notif.message,
                   icon: '/favicon.ico',
-                  tag: `certdax-${latest.id}`,
+                  tag: `certdax-${notif.id}`,
                 });
               }
             }
-          });
+          }
+          lastSeenIdRef.current = latestId;
         }
-        prevUnreadRef.current = newCount;
-        setUnreadCount(newCount);
       })
       .catch(() => {});
   }, [addToast]);
