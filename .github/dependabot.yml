@@ -1,0 +1,40 @@
+version: 2
+updates:
+  # 1. TypeScript / JavaScript (53.8%)
+  # Covers package.json and lockfiles (npm, yarn, or bun)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      frontend-deps:
+        patterns:
+          - "*"
+
+  # 2. Python (38.6%)
+  # Covers requirements.txt, setup.py, or pyproject.toml
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # 3. Go (6.9%)
+  # Covers go.mod and go.sum
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # 4. GitHub Actions (Shell/Workflow automation)
+  # Keeps your CI/CD pipelines secure
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # 5. Docker (0.2%)
+  # Monitors your Dockerfile for base image updates
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
