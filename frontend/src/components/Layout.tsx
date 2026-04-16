@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import type { User } from '../types';
+import NotificationBell from './NotificationBell';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -195,7 +196,9 @@ export default function Layout() {
             <Menu className="w-5 h-5" />
           </button>
           {currentUser && (
-            <div className="relative ml-auto" ref={menuRef}>
+            <div className="flex items-center gap-2 ml-auto">
+              <NotificationBell />
+              <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
                 className="flex items-center gap-3 hover:bg-slate-50 rounded-lg px-3 py-2 transition-colors"
@@ -243,6 +246,7 @@ export default function Layout() {
                   </button>
                 </div>
               )}
+            </div>
             </div>
           )}
         </header>

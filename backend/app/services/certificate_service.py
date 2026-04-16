@@ -163,6 +163,31 @@ async def process_certificate_request(cert_id: int):
             _now = format_now()
             _is_renewal = cert.modified_by_user_id is not None
 
+            # In-app notification
+            from app.services.notification_service import create_notification
+            if _is_renewal:
+                create_notification(
+                    group_id=cert.group_id,
+                    type="cert_renewed",
+                    resource_type="certificate",
+                    resource_id=cert.id,
+                    title=f"Certificate renewed: {cert.common_name}",
+                    message=f"Certificate {cert.common_name} was renewed by {_username or 'System (auto-renewal)'}.",
+                    actor=_username or "System (auto-renewal)",
+                    db=db,
+                )
+            else:
+                create_notification(
+                    group_id=cert.group_id,
+                    type="cert_issued",
+                    resource_type="certificate",
+                    resource_id=cert.id,
+                    title=f"Certificate issued: {cert.common_name}",
+                    message=f"Certificate {cert.common_name} was issued by {_username or 'System'}.",
+                    actor=_username or "System",
+                    db=db,
+                )
+
             # Email notification
             if _is_renewal:
                 from app.services.email_service import notify_certificate_renewed
@@ -205,6 +230,18 @@ async def process_certificate_request(cert_id: int):
                     group_id=cert.group_id,
                     common_name=cert.common_name,
                     error_message=str(e)[:200],
+                )
+
+                from app.services.notification_service import create_notification
+                create_notification(
+                    group_id=cert.group_id,
+                    type="cert_error",
+                    resource_type="certificate",
+                    resource_id=cert.id,
+                    title=f"Certificate error: {cert.common_name}",
+                    message=f"Certificate request for {cert.common_name} failed: {str(e)[:200]}",
+                    actor="System",
+                    db=db,
                 )
         except Exception:
             pass

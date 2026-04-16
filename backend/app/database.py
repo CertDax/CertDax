@@ -295,6 +295,29 @@ def _migrate_db():
             """))
 
 
+    # --- Notifications table ---
+    if "notifications" not in existing_tables:
+        if _is_sqlite:
+            pk_def = "id INTEGER PRIMARY KEY"
+        else:
+            pk_def = "id SERIAL PRIMARY KEY"
+        with engine.begin() as conn:
+            conn.execute(text(f"""
+                CREATE TABLE notifications (
+                    {pk_def},
+                    group_id INTEGER REFERENCES groups(id),
+                    type VARCHAR(50) NOT NULL,
+                    resource_type VARCHAR(50) NOT NULL,
+                    resource_id INTEGER,
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT NOT NULL,
+                    actor VARCHAR(100) NOT NULL DEFAULT 'system',
+                    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+
+
 def init_db():
     import app.models  # noqa: F401
 

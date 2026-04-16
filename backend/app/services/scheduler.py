@@ -95,6 +95,18 @@ def _do_check_expired():
                 common_name=cert.common_name,
             )
 
+            from app.services.notification_service import create_notification
+            create_notification(
+                group_id=cert.group_id,
+                type="cert_expired",
+                resource_type="certificate",
+                resource_id=cert.id,
+                title=f"Certificate expired: {cert.common_name}",
+                message=f"Certificate {cert.common_name} has expired.",
+                actor="System",
+                db=db,
+            )
+
         # Self-signed certificates
         expired_ss = (
             db.query(SelfSignedCertificate)
@@ -111,6 +123,18 @@ def _do_check_expired():
             notify_selfsigned_expired(
                 group_id=cert.group_id,
                 common_name=cert.common_name,
+            )
+
+            from app.services.notification_service import create_notification
+            create_notification(
+                group_id=cert.group_id,
+                type="cert_expired",
+                resource_type="selfsigned",
+                resource_id=cert.id,
+                title=f"Self-signed expired: {cert.common_name}",
+                message=f"Self-signed certificate {cert.common_name} has expired.",
+                actor="System",
+                db=db,
             )
 
         db.commit()
@@ -225,6 +249,18 @@ def _auto_renew_selfsigned(db, cert):
             renewed_by="System (auto-renewal)",
             renewed_at=format_now(),
             validity_days=cert.validity_days,
+        )
+
+        from app.services.notification_service import create_notification
+        create_notification(
+            group_id=cert.group_id,
+            type="cert_renewed",
+            resource_type="selfsigned",
+            resource_id=cert.id,
+            title=f"Self-signed renewed: {cert.common_name}",
+            message=f"Self-signed certificate {cert.common_name} was automatically renewed.",
+            actor="System (auto-renewal)",
+            db=db,
         )
 
         logger.info(f"Self-signed certificate {cert.id} ({cert.common_name}) renewed successfully")

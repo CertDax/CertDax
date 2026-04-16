@@ -59,17 +59,29 @@ export default function CertificateCard({ cert }: { cert: Certificate }) {
                 Modified by {cert.modified_by_username}
               </p>
             )}
+            {!cert.modified_by_username && cert.updated_at && cert.created_at && cert.updated_at !== cert.created_at && (
+              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                Modified by System (auto-renewal)
+              </p>
+            )}
           </div>
         </div>
         <StatusBadge status={cert.status} />
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm">
-        <div>
+        <div className="space-y-0.5">
           {cert.issued_at && (
-            <span className="text-slate-400">
+            <span className="text-slate-400 block">
               Issued:{' '}
               {format(new Date(cert.issued_at), 'd MMM yyyy')}
+            </span>
+          )}
+          {cert.updated_at && cert.updated_at !== cert.created_at && (
+            <span className="text-slate-400 block">
+              Last modified:{' '}
+              {format(new Date(cert.updated_at), 'd MMM yyyy HH:mm')}
             </span>
           )}
         </div>

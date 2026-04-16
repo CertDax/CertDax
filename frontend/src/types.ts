@@ -249,3 +249,16 @@ export interface K8sOperator {
 export interface K8sOperatorCreate extends K8sOperator {
   operator_token: string;
 }
+
+export interface Notification {
+  id: number;
+  group_id: number | null;
+  type: string;
+  resource_type: string;
+  resource_id: number | null;
+  title: string;
+  message: string;
+  actor: string;
+  is_read: boolean;
+  created_at: string;
+}
