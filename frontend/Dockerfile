@@ -3,7 +3,7 @@ FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --no-audit
+RUN npm install -g npm@11 && npm ci --no-audit
 
 COPY . .
 RUN npm run build
