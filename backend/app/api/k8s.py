@@ -182,12 +182,23 @@ def request_certificate_from_operator(
         trigger_certificate_request(new_cert.id)
 
         from app.services.email_service import notify_certificate_requested
+        from app.services.notification_service import create_notification
         from app.utils.time import format_now
         notify_certificate_requested(
             group_id=user.group_id,
             common_name=new_cert.common_name,
             requested_by=user.display_name or user.username,
             requested_at=format_now(),
+        )
+        create_notification(
+            group_id=user.group_id,
+            type="cert_requested",
+            resource_type="certificate",
+            resource_id=new_cert.id,
+            title=f"Certificate requested: {new_cert.common_name}",
+            message=f"Certificate {new_cert.common_name} was requested by {user.display_name or user.username}.",
+            actor=user.display_name or user.username,
+            db=db,
         )
 
         return {"id": new_cert.id, "type": "acme", "status": "pending"}
@@ -263,12 +274,23 @@ def request_certificate_from_operator(
         db.refresh(new_cert)
 
         from app.services.email_service import notify_selfsigned_created
+        from app.services.notification_service import create_notification
         from app.utils.time import format_now
         notify_selfsigned_created(
             group_id=user.group_id,
             common_name=new_cert.common_name,
             created_by=user.display_name or user.username,
             created_at=format_now(),
+        )
+        create_notification(
+            group_id=user.group_id,
+            type="selfsigned_created",
+            resource_type="self_signed",
+            resource_id=new_cert.id,
+            title=f"Self-signed certificate created: {new_cert.common_name}",
+            message=f"Self-signed certificate {new_cert.common_name} was created by {user.display_name or user.username}.",
+            actor=user.display_name or user.username,
+            db=db,
         )
 
         return {"id": new_cert.id, "type": "selfsigned", "status": "issued"}

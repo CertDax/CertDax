@@ -438,12 +438,23 @@ def create_self_signed(
     db.refresh(record)
 
     from app.services.email_service import notify_selfsigned_created
+    from app.services.notification_service import create_notification
     from app.utils.time import format_now
     notify_selfsigned_created(
         group_id=user.group_id,
         common_name=record.common_name,
         created_by=user.display_name or user.username,
         created_at=format_now(),
+    )
+    create_notification(
+        group_id=user.group_id,
+        type="selfsigned_created",
+        resource_type="self_signed",
+        resource_id=record.id,
+        title=f"Self-signed certificate created: {record.common_name}",
+        message=f"Self-signed certificate {record.common_name} was created by {user.display_name or user.username}.",
+        actor=user.display_name or user.username,
+        db=db,
     )
 
     resp = SelfSignedResponse.model_validate(record)
@@ -527,12 +538,22 @@ def delete_self_signed(
     db.commit()
 
     from app.services.email_service import notify_selfsigned_deleted
+    from app.services.notification_service import create_notification
     from app.utils.time import format_now
     notify_selfsigned_deleted(
         group_id=group_id,
         common_name=common_name,
         deleted_by=user.display_name or user.username,
         deleted_at=format_now(),
+    )
+    create_notification(
+        group_id=group_id,
+        type="selfsigned_deleted",
+        resource_type="self_signed",
+        resource_id=cert_id,
+        title=f"Self-signed certificate deleted: {common_name}",
+        message=f"Self-signed certificate {common_name} was deleted by {user.display_name or user.username}.",
+        actor=user.display_name or user.username,
     )
 
     return {"detail": "Certificate deleted"}
@@ -600,6 +621,7 @@ def renew_self_signed(
     _create_pending_deployments_self_signed(db, cert_id)
 
     from app.services.email_service import notify_selfsigned_renewed
+    from app.services.notification_service import create_notification
     from app.utils.time import format_now
     notify_selfsigned_renewed(
         group_id=cert.group_id,
@@ -607,6 +629,16 @@ def renew_self_signed(
         renewed_by=user.display_name or user.username,
         renewed_at=format_now(),
         validity_days=effective_days,
+    )
+    create_notification(
+        group_id=cert.group_id,
+        type="selfsigned_renewed",
+        resource_type="self_signed",
+        resource_id=cert.id,
+        title=f"Self-signed certificate renewed: {cert.common_name}",
+        message=f"Self-signed certificate {cert.common_name} was renewed by {user.display_name or user.username}.",
+        actor=user.display_name or user.username,
+        db=db,
     )
 
     resp = SelfSignedDetailResponse.model_validate(cert)

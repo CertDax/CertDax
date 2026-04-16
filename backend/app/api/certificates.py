@@ -752,12 +752,23 @@ def request_certificate(
     trigger_certificate_request(cert.id)
 
     from app.services.email_service import notify_certificate_requested
+    from app.services.notification_service import create_notification
     from app.utils.time import format_now
     notify_certificate_requested(
         group_id=user.group_id,
         common_name=cert.common_name,
         requested_by=user.display_name or user.username,
         requested_at=format_now(),
+    )
+    create_notification(
+        group_id=user.group_id,
+        type="cert_requested",
+        resource_type="certificate",
+        resource_id=cert.id,
+        title=f"Certificate requested: {cert.common_name}",
+        message=f"Certificate {cert.common_name} was requested by {user.display_name or user.username}.",
+        actor=user.display_name or user.username,
+        db=db,
     )
 
     resp = CertificateResponse.model_validate(cert)
@@ -915,12 +926,22 @@ def delete_certificate(
     db.commit()
 
     from app.services.email_service import notify_certificate_deleted
+    from app.services.notification_service import create_notification
     from app.utils.time import format_now
     notify_certificate_deleted(
         group_id=cert_group_id,
         common_name=common_name,
         deleted_by=user.display_name or user.username,
         deleted_at=format_now(),
+    )
+    create_notification(
+        group_id=cert_group_id,
+        type="cert_deleted",
+        resource_type="certificate",
+        resource_id=cert_id,
+        title=f"Certificate deleted: {common_name}",
+        message=f"Certificate {common_name} was deleted by {user.display_name or user.username}.",
+        actor=user.display_name or user.username,
     )
 
     return {"detail": "Certificate deleted"}

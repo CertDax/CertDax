@@ -340,9 +340,20 @@ async def process_certificate_revoke(cert_id: int):
             db.commit()
 
             from app.services.email_service import notify_certificate_revoked
+            from app.services.notification_service import create_notification
             notify_certificate_revoked(
                 group_id=cert.group_id,
                 common_name=cert.common_name,
+            )
+            create_notification(
+                group_id=cert.group_id,
+                type="cert_revoked",
+                resource_type="certificate",
+                resource_id=cert.id,
+                title=f"Certificate revoked: {cert.common_name}",
+                message=f"Certificate {cert.common_name} has been revoked.",
+                actor="system",
+                db=db,
             )
 
             logger.info(f"Certificate {cert_id} revoked successfully")
