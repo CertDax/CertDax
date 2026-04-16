@@ -128,16 +128,20 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
             ),
             critical=True,
         )
+        eku_list = [
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH,
+        ]
+        if req.custom_oids:
+            for e in req.custom_oids:
+                if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
+                    eku_list.append(x509.ObjectIdentifier(e.oid))
         builder = builder.add_extension(
-            x509.ExtendedKeyUsage([
-                ExtendedKeyUsageOID.SERVER_AUTH,
-                ExtendedKeyUsageOID.CLIENT_AUTH,
-            ]),
-            critical=False,
+            x509.ExtendedKeyUsage(eku_list), critical=False,
         )
 
-    # Custom EKU OIDs
-    if req.custom_oids:
+    # Custom EKU OIDs for CA certificates (no default EKU added above)
+    if req.is_ca and req.custom_oids:
         eku_oids = [
             e for e in req.custom_oids
             if e.oid.startswith("1.3.6.1.5.5.7.3.")
@@ -279,16 +283,20 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
             ),
             critical=True,
         )
+        eku_list = [
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH,
+        ]
+        if req.custom_oids:
+            for e in req.custom_oids:
+                if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
+                    eku_list.append(x509.ObjectIdentifier(e.oid))
         builder = builder.add_extension(
-            x509.ExtendedKeyUsage([
-                ExtendedKeyUsageOID.SERVER_AUTH,
-                ExtendedKeyUsageOID.CLIENT_AUTH,
-            ]),
-            critical=False,
+            x509.ExtendedKeyUsage(eku_list), critical=False,
         )
 
-    # Custom EKU OIDs
-    if req.custom_oids:
+    # Custom EKU OIDs for CA certificates (no default EKU added above)
+    if req.is_ca and req.custom_oids:
         eku_oids = [
             e for e in req.custom_oids
             if e.oid.startswith("1.3.6.1.5.5.7.3.")
