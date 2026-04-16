@@ -12,6 +12,11 @@ export interface Certificate {
   auto_renew: boolean;
   renewal_threshold_days: number | null;
   custom_oids: string | null;
+  country: string | null;
+  state: string | null;
+  locality: string | null;
+  organization: string | null;
+  organizational_unit: string | null;
   error_message: string | null;
   created_by_username: string | null;
   modified_by_username: string | null;

@@ -25,6 +25,7 @@ import {
   Link as LinkIcon,
   Fingerprint,
   User,
+  Building2,
 } from 'lucide-react';
 import api from '../services/api';
 import type { CertificateDetail as CertDetail, OidEntry } from '../types';
@@ -439,6 +440,48 @@ export default function CertificateDetail() {
           )}
         </div>
       </div>
+
+      {/* Subject Details */}
+      {(cert.organization || cert.organizational_unit || cert.country || cert.state || cert.locality) && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <Building2 className="w-5 h-5" />
+            Subject
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            {cert.organization && (
+              <div>
+                <span className="text-slate-500">Organization (O):</span>
+                <span className="ml-2 font-medium text-slate-900">{cert.organization}</span>
+              </div>
+            )}
+            {cert.organizational_unit && (
+              <div>
+                <span className="text-slate-500">Department (OU):</span>
+                <span className="ml-2 font-medium text-slate-900">{cert.organizational_unit}</span>
+              </div>
+            )}
+            {cert.country && (
+              <div>
+                <span className="text-slate-500">Country (C):</span>
+                <span className="ml-2 font-medium text-slate-900">{cert.country}</span>
+              </div>
+            )}
+            {cert.state && (
+              <div>
+                <span className="text-slate-500">Province (ST):</span>
+                <span className="ml-2 font-medium text-slate-900">{cert.state}</span>
+              </div>
+            )}
+            {cert.locality && (
+              <div>
+                <span className="text-slate-500">City (L):</span>
+                <span className="ml-2 font-medium text-slate-900">{cert.locality}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* OIDs */}
       {customOids.length > 0 && (
