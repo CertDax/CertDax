@@ -7,6 +7,22 @@ import type { Notification } from '../types';
 
 const POLL_INTERVAL = 30_000;
 
+function requestBrowserPermission() {
+  if ('Notification' in window && window.Notification.permission === 'default') {
+    window.Notification.requestPermission();
+  }
+}
+
+function showBrowserNotification(notif: Notification) {
+  if ('Notification' in window && window.Notification.permission === 'granted') {
+    new window.Notification(notif.title, {
+      body: notif.message,
+      icon: '/favicon.ico',
+      tag: `certdax-${notif.id}`,
+    });
+  }
+}
+
 function getNotificationIcon(type: string) {
   switch (type) {
     case 'cert_issued':
@@ -27,11 +43,24 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const prevUnreadRef = useRef<number | null>(null);
   const navigate = useNavigate();
 
   const fetchUnreadCount = useCallback(() => {
     api.get('/notifications/unread-count')
-      .then(({ data }) => setUnreadCount(data.unread))
+      .then(({ data }) => {
+        const newCount = data.unread;
+        // Detect new notifications arriving
+        if (prevUnreadRef.current !== null && newCount > prevUnreadRef.current) {
+          // Fetch latest to show browser notification
+          api.get('/notifications?limit=5').then(({ data: notifs }) => {
+            const latest = notifs.find((n: Notification) => !n.is_read);
+            if (latest) showBrowserNotification(latest);
+          });
+        }
+        prevUnreadRef.current = newCount;
+        setUnreadCount(newCount);
+      })
       .catch(() => {});
   }, []);
 
@@ -42,6 +71,7 @@ export default function NotificationBell() {
   }, []);
 
   useEffect(() => {
+    requestBrowserPermission();
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, POLL_INTERVAL);
     return () => clearInterval(interval);
