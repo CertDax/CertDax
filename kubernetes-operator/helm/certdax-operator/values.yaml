@@ -2,7 +2,7 @@
 replicaCount: 1
 
 image:
-  repository: ghcr.io/squadramunter/certdax-k8s-operator
+  repository: ghcr.io/certdax/certdax-k8s-operator
   tag: latest
   pullPolicy: Always
 
