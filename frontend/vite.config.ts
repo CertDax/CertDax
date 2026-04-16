@@ -8,16 +8,16 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          charts: ['recharts'],
+        manualChunks(id) {
+          if (id.includes('node_modules/react-router-dom') || id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {
+            return 'vendor';
+          }
+          if (id.includes('node_modules/recharts')) {
+            return 'charts';
+          }
         },
       },
     },
-  },
-  optimizeDeps: {
-    // Suppress "No sources are declared in this source map" warnings
-    esbuildOptions: { sourcemap: false },
   },
   server: {
     host: '0.0.0.0',
