@@ -201,6 +201,11 @@ type CertificateRequestPayload struct {
 	IsCA           bool   `json:"is_ca"`
 	AutoRenew      bool   `json:"auto_renew"`
 	ValidityDays   int    `json:"validity_days,omitempty"`
+	Country        string `json:"country,omitempty"`
+	State          string `json:"state,omitempty"`
+	Locality       string `json:"locality,omitempty"`
+	Organization       string `json:"organization,omitempty"`
+	OrganizationalUnit string `json:"organizational_unit,omitempty"`
 }
 
 // CertificateRequestResponse is the JSON response from the request endpoint.

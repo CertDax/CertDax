@@ -120,6 +120,11 @@ class K8sCertificateRequestBody(BaseModel):
     is_ca: bool = False
     auto_renew: bool = True
     validity_days: int = 365
+    country: str | None = None
+    state: str | None = None
+    locality: str | None = None
+    organization: str | None = None
+    organizational_unit: str | None = None
 
 
 @router.post("/certificates/request", summary="Request a new certificate from the K8s operator")
@@ -171,6 +176,11 @@ def request_certificate_from_operator(
             dns_provider_id=body.dns_provider_id,
             challenge_type="dns-01",
             auto_renew=body.auto_renew,
+            country=body.country,
+            state=body.state,
+            locality=body.locality,
+            organization=body.organization,
+            organizational_unit=body.organizational_unit,
             status="pending",
             group_id=user.group_id,
             created_by_user_id=user.id,
@@ -232,6 +242,11 @@ def request_certificate_from_operator(
             auto_renew=body.auto_renew,
             ca_id=body.ca_id,
             is_ca=body.is_ca,
+            country=body.country,
+            state=body.state,
+            locality=body.locality,
+            organization=body.organization,
+            organizational_unit=body.organizational_unit,
         )
 
         ca_record = None

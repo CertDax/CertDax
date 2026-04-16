@@ -215,14 +215,37 @@ spec:
 
 | Field              | Type              | Default      | Description                                                |
 |--------------------|-------------------|--------------|------------------------------------------------------------|
-| `certificateId`    | int               | *required*   | Certificate ID in CertDax                                  |
+| `certificateId`    | int               | `0`          | Certificate ID in CertDax. Set to `0` with a `request` block to create a new certificate |
 | `type`             | string            | `selfsigned` | Certificate type: `selfsigned` or `acme`                   |
+| `request`          | object            | —            | Request block to create a new certificate (see below)      |
 | `secretName`       | string            | *required*   | Name of the TLS secret to create                           |
 | `secretNamespace`  | string            | CR namespace | Override namespace for the secret                          |
 | `syncInterval`     | string            | `1h`         | Re-sync interval (Go duration: `30m`, `1h`, `24h`)        |
 | `includeCA`        | bool              | `true`       | Include CA cert in `ca.crt` field of the secret            |
 | `secretLabels`     | map[string]string | `{}`         | Additional labels for the TLS secret                       |
 | `secretAnnotations`| map[string]string | `{}`         | Additional annotations for the TLS secret                  |
+
+### Request Block Fields
+
+When `certificateId` is `0`, the operator can request a new certificate via the `request` block:
+
+| Field            | Type   | Default | Description                                                        |
+|------------------|--------|---------|--------------------------------------------------------------------|
+| `commonName`     | string | *required* | Primary domain / CN for the certificate                         |
+| `sanDomains`     | string | `""`    | Comma-separated Subject Alternative Names                         |
+| `providerId`     | int    | —       | ACME provider ID (required when `type: acme`)                      |
+| `dnsProviderId`  | int    | —       | DNS provider ID for dns-01 challenge (required when `type: acme`)  |
+| `caId`           | int    | —       | CA certificate ID for CA-signed self-signed certs                  |
+| `isCA`           | bool   | `false` | Create a CA certificate instead of a regular certificate           |
+| `autoRenew`      | bool   | `true`  | Enable automatic renewal in CertDax                                |
+| `validityDays`   | int    | `365`   | Validity period (self-signed only, ACME is determined by the CA)   |
+| `country`        | string | —       | ISO 3166-1 alpha-2 country code (e.g. `NL`)                       |
+| `state`          | string | —       | State or province name                                             |
+| `locality`       | string | —       | City or locality name                                              |
+| `organization`   | string | —       | Organization name                                                  |
+| `organizational_unit` | string | — | Department / Organizational Unit (OU)                              |
+
+> **Note:** Subject fields (`country`, `state`, `locality`, `organization`, `organizational_unit`) are included in the CSR. Let's Encrypt ignores these fields, but other CA providers may include them in the issued certificate.
 
 ### Status Fields
 

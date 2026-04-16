@@ -17,6 +17,11 @@ class CertificateRequest(BaseModel):
     custom_oids: list[OidEntry] | None = None
     target_id: int | None = None
     deploy_format: str = "crt"
+    country: str | None = None
+    state: str | None = None
+    locality: str | None = None
+    organization: str | None = None
+    organizational_unit: str | None = None
 
 
 class CertificateResponse(BaseModel):
@@ -33,6 +38,11 @@ class CertificateResponse(BaseModel):
     auto_renew: bool
     renewal_threshold_days: int | None = None
     custom_oids: str | None = None
+    country: str | None = None
+    state: str | None = None
+    locality: str | None = None
+    organization: str | None = None
+    organizational_unit: str | None = None
     error_message: str | None = None
     created_by_username: str | None = None
     modified_by_username: str | None = None

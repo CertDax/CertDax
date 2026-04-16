@@ -86,6 +86,26 @@ type CertificateRequest struct {
 	// +optional
 	// +kubebuilder:default=365
 	ValidityDays int `json:"validityDays,omitempty"`
+
+	// Country is the ISO 3166-1 alpha-2 country code for the certificate subject (e.g. "NL").
+	// +optional
+	Country string `json:"country,omitempty"`
+
+	// State is the state or province for the certificate subject.
+	// +optional
+	State string `json:"state,omitempty"`
+
+	// Locality is the city or locality for the certificate subject.
+	// +optional
+	Locality string `json:"locality,omitempty"`
+
+	// Organization is the organization name for the certificate subject.
+	// +optional
+	Organization string `json:"organization,omitempty"`
+
+	// OrganizationalUnit is the department or OU for the certificate subject.
+	// +optional
+	OrganizationalUnit string `json:"organizational_unit,omitempty"`
 }
 
 // CertDaxCertificateStatus defines the observed state of CertDaxCertificate.

@@ -139,6 +139,11 @@ async def process_certificate_request(cert_id: int):
                 challenge_type=cert.challenge_type,
                 dns_provider=dns_provider_instance,
                 custom_oids=custom_oids,
+                country=cert.country,
+                state=cert.state,
+                locality=cert.locality,
+                organization=cert.organization,
+                organizational_unit=cert.organizational_unit,
             )
 
             issued_at, expires_at = parse_certificate_dates(cert_pem)

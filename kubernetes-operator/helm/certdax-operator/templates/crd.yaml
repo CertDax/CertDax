@@ -73,6 +73,21 @@ spec:
                       type: integer
                       description: "Number of days the self-signed certificate is valid."
                       default: 365
+                    country:
+                      type: string
+                      description: "ISO 3166-1 alpha-2 country code (e.g. NL)."
+                    state:
+                      type: string
+                      description: "State or province name."
+                    locality:
+                      type: string
+                      description: "City or locality name."
+                    organization:
+                      type: string
+                      description: "Organization name."
+                    organizational_unit:
+                      type: string
+                      description: "Department / Organizational Unit (OU)."
                 secretName:
                   type: string
                   description: Name of the Kubernetes TLS secret to create/update.

@@ -64,6 +64,11 @@ class Certificate(Base):
         DateTime(timezone=True), nullable=True
     )
     custom_oids: Mapped[str | None] = mapped_column(Text, nullable=True)
+    country: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    locality: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    organization: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    organizational_unit: Mapped[str | None] = mapped_column(String(200), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("groups.id"), nullable=True

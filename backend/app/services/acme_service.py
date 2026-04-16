@@ -257,6 +257,11 @@ class AcmeClient:
         challenge_type: str = "dns-01",
         dns_provider=None,
         custom_oids: list[dict] | None = None,
+        country: str | None = None,
+        state: str | None = None,
+        locality: str | None = None,
+        organization: str | None = None,
+        organizational_unit: str | None = None,
     ) -> tuple[str, str, str]:
         if not self.directory:
             await self.fetch_directory()
@@ -295,7 +300,11 @@ class AcmeClient:
                     logger.warning(f"Failed to cleanup DNS record: {e}")
 
         private_key = generate_rsa_key()
-        csr_der = create_csr(private_key, domains, custom_oids=custom_oids)
+        csr_der = create_csr(
+            private_key, domains, custom_oids=custom_oids,
+            country=country, state=state, locality=locality, organization=organization,
+            organizational_unit=organizational_unit,
+        )
 
         await self.finalize_order(order["finalize"], csr_der)
         order = await self.poll_order(order_url)

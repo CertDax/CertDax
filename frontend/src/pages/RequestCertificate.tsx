@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Minus, ShieldCheck, Tag, FlaskConical, CheckCircle2, AlertTriangle, XCircle, Loader2, Server } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, ShieldCheck, Tag, FlaskConical, CheckCircle2, AlertTriangle, XCircle, Loader2, Server, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 import type { CertificateAuthority, DnsProvider, OidEntry, DryRunStep, DeploymentTarget, AgentGroupDetail } from '../types';
@@ -27,6 +27,12 @@ export default function RequestCertificate() {
   const [renewalThresholdDays, setRenewalThresholdDays] = useState('');
   const [customOids, setCustomOids] = useState<OidEntry[]>([]);
   const [showOids, setShowOids] = useState(false);
+  const [showSubject, setShowSubject] = useState(false);
+  const [country, setCountry] = useState('');
+  const [stateProvince, setStateProvince] = useState('');
+  const [locality, setLocality] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [organizationalUnit, setOrganizationalUnit] = useState('');
   const [dryRun, setDryRun] = useState(false);
   const [dryRunLoading, setDryRunLoading] = useState(false);
   const [dryRunSteps, setDryRunSteps] = useState<DryRunStep[]>([]);
@@ -79,6 +85,11 @@ export default function RequestCertificate() {
       auto_renew: autoRenew,
       renewal_threshold_days: autoRenew && renewalThresholdDays ? parseInt(renewalThresholdDays) : null,
       custom_oids: validOids.length > 0 ? validOids : null,
+      country: country.trim() || null,
+      state: stateProvince.trim() || null,
+      locality: locality.trim() || null,
+      organization: organization.trim() || null,
+      organizational_unit: organizationalUnit.trim() || null,
       ...(agentTarget ? { target_id: agentTarget.id, deploy_format: deployFormat } : {}),
     };
   };
@@ -400,6 +411,83 @@ export default function RequestCertificate() {
                 )}
               </div>
             )}
+
+            {/* Subject Information */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
+                  <Building2 className="w-4 h-4" />
+                  Subject Information
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowSubject(!showSubject)}
+                  className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                >
+                  {showSubject ? 'Hide' : 'Add subject fields'}
+                </button>
+              </div>
+              {showSubject && (
+                <div className="space-y-3 p-4 bg-slate-50 rounded-lg">
+                  <p className="text-xs text-slate-500 mb-2">
+                    Optional subject fields included in the CSR. These are embedded in the certificate if the CA supports them.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Country</label>
+                      <input
+                        type="text"
+                        value={country}
+                        onChange={(e) => setCountry(e.target.value)}
+                        placeholder="NL"
+                        maxLength={2}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">State / Province</label>
+                      <input
+                        type="text"
+                        value={stateProvince}
+                        onChange={(e) => setStateProvince(e.target.value)}
+                        placeholder="Zuid-Holland"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Locality</label>
+                      <input
+                        type="text"
+                        value={locality}
+                        onChange={(e) => setLocality(e.target.value)}
+                        placeholder="Rotterdam"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Organization</label>
+                      <input
+                        type="text"
+                        value={organization}
+                        onChange={(e) => setOrganization(e.target.value)}
+                        placeholder="My Company B.V."
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Department (OU)</label>
+                      <input
+                        type="text"
+                        value={organizationalUnit}
+                        onChange={(e) => setOrganizationalUnit(e.target.value)}
+                        placeholder="IT Department"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Custom OIDs */}
             <div>

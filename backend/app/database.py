@@ -317,6 +317,21 @@ def _migrate_db():
                 )
             """))
 
+    # --- Subject fields on certificates ---
+    if "certificates" in existing_tables:
+        cert_columns = {c["name"] for c in inspector.get_columns("certificates")}
+        with engine.begin() as conn:
+            if "country" not in cert_columns:
+                conn.execute(text("ALTER TABLE certificates ADD COLUMN country VARCHAR(10)"))
+            if "state" not in cert_columns:
+                conn.execute(text("ALTER TABLE certificates ADD COLUMN state VARCHAR(100)"))
+            if "locality" not in cert_columns:
+                conn.execute(text("ALTER TABLE certificates ADD COLUMN locality VARCHAR(100)"))
+            if "organization" not in cert_columns:
+                conn.execute(text("ALTER TABLE certificates ADD COLUMN organization VARCHAR(200)"))
+            if "organizational_unit" not in cert_columns:
+                conn.execute(text("ALTER TABLE certificates ADD COLUMN organizational_unit VARCHAR(200)"))
+
 
 def init_db():
     import app.models  # noqa: F401

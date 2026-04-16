@@ -107,6 +107,11 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 			IsCA:          certCR.Spec.Request.IsCA,
 			AutoRenew:     certCR.Spec.Request.AutoRenew,
 			ValidityDays:  certCR.Spec.Request.ValidityDays,
+			Country:       certCR.Spec.Request.Country,
+			State:         certCR.Spec.Request.State,
+			Locality:      certCR.Spec.Request.Locality,
+			Organization:       certCR.Spec.Request.Organization,
+			OrganizationalUnit: certCR.Spec.Request.OrganizationalUnit,
 		}
 
 		resp, err := r.CertDaxAPI.RequestCertificate(payload)

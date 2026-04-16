@@ -147,11 +147,30 @@ def sign_jws(
     }
 
 
-def create_csr(private_key: rsa.RSAPrivateKey, domains: list[str], custom_oids: list[dict] | None = None) -> bytes:
+def create_csr(
+    private_key: rsa.RSAPrivateKey,
+    domains: list[str],
+    custom_oids: list[dict] | None = None,
+    country: str | None = None,
+    state: str | None = None,
+    locality: str | None = None,
+    organization: str | None = None,
+    organizational_unit: str | None = None,
+) -> bytes:
     common_name = domains[0]
     builder = x509.CertificateSigningRequestBuilder()
 
     name_attrs = [x509.NameAttribute(NameOID.COMMON_NAME, common_name)]
+    if country:
+        name_attrs.append(x509.NameAttribute(NameOID.COUNTRY_NAME, country))
+    if state:
+        name_attrs.append(x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, state))
+    if locality:
+        name_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, locality))
+    if organization:
+        name_attrs.append(x509.NameAttribute(NameOID.ORGANIZATION_NAME, organization))
+    if organizational_unit:
+        name_attrs.append(x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, organizational_unit))
     if custom_oids:
         for oid_entry in custom_oids:
             oid_obj = x509.ObjectIdentifier(oid_entry["oid"])
