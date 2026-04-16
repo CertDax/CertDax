@@ -12,6 +12,6 @@ keywords:
   - certdax
 home: https://certdax.com
 sources:
-  - https://github.com/certdax/kubernetes-operator
+  - https://github.com/CertDax/CertDax/tree/main/kubernetes-operator
 maintainers:
   - name: CertDax
