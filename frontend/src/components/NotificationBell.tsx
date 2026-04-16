@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { Bell, CheckCheck, ShieldCheck, AlertTriangle, XCircle, Info, X, BellRing } from 'lucide-react';
+import { Bell, CheckCheck, ShieldCheck, AlertTriangle, XCircle, Info, X, BellRing, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -151,6 +151,13 @@ export default function NotificationBell() {
     });
   };
 
+  const clearRead = () => {
+    api.delete('/notifications/read').then(() => {
+      setNotifications((prev) => prev.filter((n) => !n.is_read));
+      fetchUnreadCount();
+    });
+  };
+
   const handleClick = (notif: Notification) => {
     if (!notif.is_read) markRead(notif.id);
     if (notif.resource_id) {
@@ -178,18 +185,29 @@ export default function NotificationBell() {
         </button>
 
         {open && (
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+          <div className="absolute right-0 mt-2 w-[28rem] bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <h3 className="font-semibold text-slate-900 text-sm">Notifications</h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllRead}
-                  className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                >
-                  <CheckCheck className="w-3.5 h-3.5" />
-                  Mark all read
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {notifications.some((n) => n.is_read) && (
+                  <button
+                    onClick={clearRead}
+                    className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-medium"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Clear read
+                  </button>
+                )}
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllRead}
+                    className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5" />
+                    Mark all read
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="max-h-96 overflow-y-auto">
@@ -218,7 +236,7 @@ export default function NotificationBell() {
                           <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 mt-1.5" />
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5 truncate">{notif.message}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 break-words">{notif.message}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[11px] text-slate-400">
                           {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true })}

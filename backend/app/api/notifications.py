@@ -66,3 +66,18 @@ def mark_read(
     notif.is_read = True
     db.commit()
     return {"ok": True}
+
+
+@router.delete("/read")
+def clear_read(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    query = db.query(Notification).filter(Notification.is_read == True)  # noqa: E712
+    if not user.is_admin:
+        query = query.filter(
+            (Notification.group_id == user.group_id) | (Notification.group_id.is_(None))
+        )
+    count = query.delete(synchronize_session="fetch")
+    db.commit()
+    return {"deleted": count}
