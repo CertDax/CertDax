@@ -154,7 +154,7 @@ export default function NotificationBell() {
   const handleClick = (notif: Notification) => {
     if (!notif.is_read) markRead(notif.id);
     if (notif.resource_id) {
-      const basePath = notif.resource_type === 'selfsigned' ? '/self-signed' : '/certificates';
+      const basePath = notif.resource_type === 'self_signed' ? '/self-signed' : '/certificates';
       navigate(`${basePath}/${notif.resource_id}`);
       setOpen(false);
     }
@@ -282,13 +282,13 @@ export default function NotificationBell() {
               handleClick(toast.notification);
               removeToast(toast.id);
             }}
-            className="pointer-events-auto bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-80 cursor-pointer hover:bg-slate-50 transition-colors animate-[slideUp_0.3s_ease-out]"
+            className="pointer-events-auto bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-96 cursor-pointer hover:bg-slate-50 transition-colors animate-[slideUp_0.3s_ease-out]"
           >
             <div className="flex items-start gap-3">
               {getNotificationIcon(toast.notification.type, 'w-5 h-5')}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{toast.notification.title}</p>
-                <p className="text-xs text-slate-500 mt-0.5 truncate">{toast.notification.message}</p>
+                <p className="text-sm font-semibold text-slate-900 break-words">{toast.notification.title}</p>
+                <p className="text-xs text-slate-500 mt-0.5 break-words">{toast.notification.message}</p>
                 <p className="text-[11px] text-slate-400 mt-1">{toast.notification.actor}</p>
               </div>
               <button
