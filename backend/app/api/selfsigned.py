@@ -591,6 +591,7 @@ def delete_self_signed(
 def renew_self_signed(
     cert_id: int,
     validity_days: int | None = Query(None, ge=1, le=3650, description="Override validity period in days (defaults to original value)"),
+    include_code_signing: bool = Query(default=False, description="Add Code Signing EKU (1.3.6.1.5.5.7.3.3) to the renewed CA certificate"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -605,7 +606,22 @@ def renew_self_signed(
 
     # Reconstruct the request from existing record
     san_list = json.loads(cert.san_domains) if cert.san_domains else None
-    oid_list = [OidEntry(**o) for o in json.loads(cert.custom_oids)] if cert.custom_oids else None
+    oid_list = [OidEntry(**o) for o in json.loads(cert.custom_oids)] if cert.custom_oids else []
+
+    # Optionally add Code Signing EKU for CA certs
+    CODE_SIGNING_OID = "1.3.6.1.5.5.7.3.3"
+    if include_code_signing and cert.is_ca:
+        if not any(o.oid == CODE_SIGNING_OID for o in oid_list):
+            oid_list.append(OidEntry(oid=CODE_SIGNING_OID, value="codeSigning"))
+        # Persist the updated OID list so future renewals keep it
+        cert.custom_oids = json.dumps([o.model_dump() for o in oid_list])
+    elif not include_code_signing and cert.is_ca:
+        # Remove codeSigning if user explicitly opted out
+        removed = [o for o in oid_list if o.oid != CODE_SIGNING_OID]
+        if len(removed) != len(oid_list):
+            oid_list = removed
+            cert.custom_oids = json.dumps([o.model_dump() for o in oid_list]) if oid_list else None
+
     req = SelfSignedRequest(
         common_name=cert.common_name,
         san_domains=san_list,
@@ -618,7 +634,7 @@ def renew_self_signed(
         key_size=cert.key_size,
         validity_days=effective_days,
         is_ca=cert.is_ca,
-        custom_oids=oid_list,
+        custom_oids=oid_list if oid_list else None,
     )
 
     # If originally signed by a CA, re-sign with the same CA

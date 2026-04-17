@@ -41,6 +41,7 @@ export default function SelfSignedDetail() {
   const [renewing, setRenewing] = useState(false);
   const [showRenewModal, setShowRenewModal] = useState(false);
   const [renewDays, setRenewDays] = useState(365);
+  const [renewCodeSigning, setRenewCodeSigning] = useState(false);
   const [deleteError, setDeleteError] = useState<{ agents: string[]; deployment_count: number } | null>(null);
   const [signedCerts, setSignedCerts] = useState<SelfSignedCertificate[]>([]);
 
@@ -127,7 +128,9 @@ export default function SelfSignedDetail() {
   const handleRenew = async () => {
     setRenewing(true);
     try {
-      await api.post(`/self-signed/${id}/renew?validity_days=${renewDays}`);
+      const params = new URLSearchParams({ validity_days: String(renewDays) });
+      if (cert?.is_ca && renewCodeSigning) params.set('include_code_signing', 'true');
+      await api.post(`/self-signed/${id}/renew?${params}`);
       setShowRenewModal(false);
       fetchCert();
     } catch {
@@ -202,7 +205,12 @@ export default function SelfSignedDetail() {
           </button>
         )}
         <button
-          onClick={() => { setRenewDays(cert.validity_days); setShowRenewModal(true); }}
+          onClick={() => {
+            setRenewDays(cert.validity_days);
+            const currentEku: string[] = parsedDetails?.certificate?.extensions?.extended_key_usage ?? [];
+            setRenewCodeSigning(currentEku.includes('codeSigning'));
+            setShowRenewModal(true);
+          }}
           className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
         >
           <RefreshCw className="w-4 h-4" />
@@ -379,10 +387,10 @@ export default function SelfSignedDetail() {
       {(() => {
         const customOids: OidEntry[] = cert.custom_oids ? JSON.parse(cert.custom_oids) : [];
 
-        // Effective EKU: always includes the backend defaults, plus any custom OIDs.
-        // This mirrors the logic in selfsigned.py so the displayed EKU matches the cert.
         type EkuEntry = { oid: string; label: string; custom?: boolean };
-        const known: Record<string, string> = {
+
+        // Map OID dotted string → friendly name and reverse
+        const knownByOid: Record<string, string> = {
           '1.3.6.1.5.5.7.3.1': 'serverAuth',
           '1.3.6.1.5.5.7.3.2': 'clientAuth',
           '1.3.6.1.5.5.7.3.3': 'codeSigning',
@@ -390,28 +398,34 @@ export default function SelfSignedDetail() {
           '1.3.6.1.5.5.7.3.8': 'timeStamping',
           '1.3.6.1.5.5.7.3.9': 'OCSPSigning',
         };
+        const knownByName: Record<string, string> = Object.fromEntries(
+          Object.entries(knownByOid).map(([oid, name]) => [name, oid])
+        );
 
-        const effectiveEku: EkuEntry[] = cert.is_ca
-          ? [
-              { oid: '1.3.6.1.5.5.7.3.1', label: 'serverAuth' },
-              { oid: '1.3.6.1.5.5.7.3.2', label: 'clientAuth' },
-            ]
-          : [
-              { oid: '1.3.6.1.5.5.7.3.1', label: 'serverAuth' },
-              { oid: '1.3.6.1.5.5.7.3.2', label: 'clientAuth' },
-            ];
+        // Default OIDs (always present regardless of user choice)
+        const defaultOids = new Set(['1.3.6.1.5.5.7.3.1', '1.3.6.1.5.5.7.3.2']);
 
-        const seenOids = new Set(effectiveEku.map((e) => e.oid));
+        let effectiveEku: EkuEntry[];
 
-        // Append custom OIDs that are not already in the defaults
-        for (const o of customOids) {
-          if (!seenOids.has(o.oid)) {
-            seenOids.add(o.oid);
-            effectiveEku.push({
-              oid: o.oid,
-              label: known[o.oid] ?? o.value ?? o.oid,
-              custom: true,
-            });
+        // Prefer the parsed X.509 EKU (ground truth from the actual certificate)
+        const parsedEku: string[] | undefined = parsedDetails?.certificate?.extensions?.extended_key_usage;
+        if (parsedEku && parsedEku.length > 0) {
+          effectiveEku = parsedEku.map((name) => {
+            const oid = knownByName[name] ?? name;
+            return { oid, label: knownByOid[oid] ?? name, custom: !defaultOids.has(oid) };
+          });
+        } else {
+          // Fallback: reconstruct from defaults + custom_oids (cert not yet parsed)
+          effectiveEku = [
+            { oid: '1.3.6.1.5.5.7.3.1', label: 'serverAuth' },
+            { oid: '1.3.6.1.5.5.7.3.2', label: 'clientAuth' },
+          ];
+          const seenOids = new Set(effectiveEku.map((e) => e.oid));
+          for (const o of customOids) {
+            if (!seenOids.has(o.oid)) {
+              seenOids.add(o.oid);
+              effectiveEku.push({ oid: o.oid, label: knownByOid[o.oid] ?? o.value ?? o.oid, custom: true });
+            }
           }
         }
 
@@ -653,6 +667,20 @@ export default function SelfSignedDetail() {
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
             />
             <p className="text-xs text-slate-500 mt-1">Between 1 and 3650 days</p>
+            {cert?.is_ca && (
+              <div className="flex items-center gap-3 mt-4">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={renewCodeSigning}
+                    onChange={(e) => setRenewCodeSigning(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+                <span className="text-sm font-medium text-slate-700">Code Signing <span className="font-mono text-xs text-slate-500">(1.3.6.1.5.5.7.3.3)</span></span>
+              </div>
+            )}
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowRenewModal(false)}
