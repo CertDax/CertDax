@@ -163,7 +163,8 @@ export default function K8sOperators() {
       )}
 
       {/* Operator list */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[600px]">
           <thead className="bg-slate-50">
             <tr>
@@ -250,6 +251,7 @@ export default function K8sOperators() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

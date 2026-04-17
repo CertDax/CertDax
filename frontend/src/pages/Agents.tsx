@@ -500,7 +500,8 @@ sudo systemctl enable --now certdax-agent`}</pre>
       )}
 
       {/* Agent list */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[600px]">
           <thead className="bg-slate-50">
             <tr>
@@ -583,6 +584,7 @@ sudo systemctl enable --now certdax-agent`}</pre>
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Install modal */}
