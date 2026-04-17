@@ -4,6 +4,57 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
 
 ![CertDax Dashboard](docs/dashboard.png)
 
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Quick Start (Docker Compose)](#quick-start-docker-compose)
+- [Development Setup](#development-setup)
+- [First Use](#first-use)
+- [Environment Variables](#environment-variables)
+- [Linux Deploy Agent](#linux-deploy-agent)
+  - [Quick Install](#quick-install)
+  - [Manual Installation](#manual-installation)
+  - [Usage Without Config File](#usage-without-config-file)
+  - [Building From Source](#building-from-source)
+- [Windows Deploy Agent](#windows-deploy-agent)
+  - [Prerequisites](#prerequisites)
+  - [Quick Install — PowerShell One-Liner (Recommended)](#quick-install--powershell-one-liner-recommended)
+  - [Manual Installation](#manual-installation-1)
+  - [Managing the Service](#managing-the-service)
+  - [Alternative Install Methods](#alternative-install-methods)
+  - [SmartScreen & Code Signing](#smartscreen--code-signing)
+  - [Certificate Deployment Path](#certificate-deployment-path)
+- [Kubernetes Operator](#kubernetes-operator)
+  - [Installation](#installation)
+  - [Deploy an Existing Certificate](#deploy-an-existing-certificate)
+  - [Request a Self-Signed Certificate via YAML](#request-a-self-signed-certificate-via-yaml)
+  - [Request a CA-Signed Certificate via YAML](#request-a-ca-signed-certificate-via-yaml)
+  - [Request an ACME Certificate via YAML](#request-an-acme-certificate-via-yaml)
+  - [Request a Self-Signed CA Certificate via YAML](#request-a-self-signed-ca-certificate-via-yaml)
+  - [Request Block Fields](#request-block-fields)
+- [DNS Provider Configuration](#dns-provider-configuration)
+  - [Cloudflare](#cloudflare)
+  - [TransIP](#transip)
+  - [Hetzner](#hetzner)
+  - [DigitalOcean](#digitalocean)
+  - [Vultr](#vultr)
+  - [OVH](#ovh)
+  - [AWS Route 53](#aws-route-53)
+  - [Google Cloud DNS](#google-cloud-dns)
+  - [Manual](#manual)
+- [Reverse Proxy](#reverse-proxy)
+  - [Nginx](#nginx)
+  - [Apache2](#apache2)
+  - [HAProxy](#haproxy)
+- [API Endpoints](#api-endpoints)
+  - [Self-Signed Certificate API Examples](#self-signed-certificate-api-examples)
+- [Scaling (Docker Swarm / Kubernetes)](#scaling-docker-swarm--kubernetes)
+  - [Requirements for multi-node](#requirements-for-multi-node)
+  - [Docker Swarm example](#docker-swarm-example)
+  - [Kubernetes](#kubernetes)
+- [Security](#security)
+
 ## Features
 
 - **Dashboard** — Overview of all certificates with status, expiry timeline, and statistics
@@ -89,7 +140,7 @@ Open http://localhost:5173 in your browser.
 4. Go to **Providers** and add a DNS provider (e.g. Cloudflare) and/or Certificate Authority
 5. Go to **Certificates** → **New certificate** and request your first ACME certificate
 6. Go to **Self-Signed** to generate internal certificates or create a CA
-7. (Optional) Set up **Agents** and install the deploy agent on your servers
+7. (Optional) Set up **Agents** and install the deploy agent on your servers — see [Linux](#linux-deploy-agent) or [Windows](#windows-deploy-agent)
 8. (Optional) Go to **API** to create API keys for scripting and automation
 
 ## Environment Variables
@@ -110,7 +161,7 @@ Open http://localhost:5173 in your browser.
 | `AGENT_BINARIES_DIR` | No | `agent-dist` | Directory containing agent binaries |
 | `DEBUG` | No | `false` | Enable Swagger/OpenAPI docs at `/docs` and `/redoc` |
 
-## Deploy Agent
+## Linux Deploy Agent
 
 The deploy agent is a statically compiled Go binary that runs on any Linux distribution without dependencies. Available for **amd64**, **arm64**, **arm** and **386** architectures. A [Windows agent](#windows-deploy-agent) is also available (see below).
 
@@ -302,7 +353,7 @@ C:\ProgramData\CertDax\certs\
 
 You can change this in the **Deploy path** field when creating the agent in the UI, or directly in `config.yaml`.
 
-
+## Kubernetes Operator
 
 The CertDax Kubernetes Operator runs in your cluster and synchronises certificates from CertDax into standard `kubernetes.io/tls` secrets. It supports Traefik IngressRoute, Nginx Ingress, and any controller that reads TLS secrets.
 
