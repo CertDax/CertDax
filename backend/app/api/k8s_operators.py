@@ -52,7 +52,48 @@ def _compute_status(op: K8sOperator) -> str:
     return "online" if delta < timedelta(seconds=OFFLINE_THRESHOLD_SECONDS) else "offline"
 
 
-def _operator_response(op: K8sOperator) -> dict:
+def _resolve_cert_name(db: Session, certificate_id: int, certificate_type: str) -> str | None:
+    """Look up the common name for a certificate ID."""
+    if certificate_type == "selfsigned":
+        cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == certificate_id).first()
+        return cert.common_name if cert else None
+    else:
+        cert = db.query(Certificate).filter(Certificate.id == certificate_id).first()
+        return cert.common_name if cert else None
+
+
+def _operator_response(op: K8sOperator, db: Session | None = None) -> dict:
+    reported = _parse_certs(op.managed_certs_json)
+
+    # Merge pending K8sDeployment records not yet reported by the operator
+    extra_pending: list[dict] = []
+    extra_pending_count = 0
+    if db is not None:
+        reported_keys = {(c.get("certificate_id"), c.get("type")) for c in reported}
+        deployments = (
+            db.query(K8sDeployment)
+            .filter(K8sDeployment.operator_id == op.id)
+            .all()
+        )
+        for d in deployments:
+            if (d.certificate_id, d.certificate_type) not in reported_keys:
+                common_name = _resolve_cert_name(db, d.certificate_id, d.certificate_type)
+                extra_pending.append({
+                    "certificate_id": d.certificate_id,
+                    "type": d.certificate_type,
+                    "common_name": common_name or f"Certificate #{d.certificate_id}",
+                    "secret_name": d.secret_name,
+                    "namespace": d.namespace,
+                    "ready": False,
+                    "message": "Waiting for operator to pick up",
+                    "expires_at": None,
+                    "last_synced_at": None,
+                    "ingresses": [],
+                })
+                extra_pending_count += 1
+
+    certificates = extra_pending + reported
+
     return {
         "id": op.id,
         "name": op.name,
@@ -66,15 +107,15 @@ def _operator_response(op: K8sOperator) -> dict:
         "cpu_usage": op.cpu_usage,
         "memory_usage": op.memory_usage,
         "memory_limit": op.memory_limit,
-        "managed_certificates": op.managed_certificates,
+        "managed_certificates": op.managed_certificates + extra_pending_count,
         "ready_certificates": op.ready_certificates,
-        "pending_certificates": op.pending_certificates,
+        "pending_certificates": op.pending_certificates + extra_pending_count,
         "failed_certificates": op.failed_certificates,
         "status": _compute_status(op),
         "last_seen": op.last_seen.isoformat() if op.last_seen else None,
         "last_error": op.last_error,
         "recent_logs": _parse_logs(op.recent_logs),
-        "certificates": _parse_certs(op.managed_certs_json),
+        "certificates": certificates,
         "created_at": op.created_at.isoformat() if op.created_at else None,
     }
 
@@ -96,7 +137,7 @@ def list_operators(
         .order_by(K8sOperator.name)
         .all()
     )
-    return [_operator_response(op) for op in operators]
+    return [_operator_response(op, db) for op in operators]
 
 
 @router.post("", summary="Register a new K8s operator")
@@ -131,7 +172,7 @@ def create_operator(
     db.commit()
     db.refresh(op)
 
-    resp = _operator_response(op)
+    resp = _operator_response(op, db)
     resp["operator_token"] = token
     resp["api_key"] = raw_api_key
     return resp
@@ -151,7 +192,7 @@ def get_operator(
     )
     if not op:
         raise HTTPException(status_code=404, detail="Operator not found")
-    return _operator_response(op)
+    return _operator_response(op, db)
 
 
 @router.delete("/{operator_id}", summary="Delete K8s operator")

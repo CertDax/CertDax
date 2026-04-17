@@ -205,6 +205,7 @@ export default function K8sOperatorDetailPage() {
         include_ca: deployIncludeCA,
       });
       setShowDeployModal(false);
+      fetchOperator();
     } catch (err) {
       console.error('Deploy failed', err);
     }
