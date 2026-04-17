@@ -85,6 +85,13 @@ class AgentDetailResponse(DeploymentTargetResponse):
     def coerce_recent_logs(cls, v):
         if v is None:
             return []
+        if isinstance(v, str):
+            import json
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else []
+            except (ValueError, TypeError):
+                return []
         return v
 
 
