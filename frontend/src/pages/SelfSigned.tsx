@@ -5,6 +5,7 @@ import {
   Filter,
   Plus,
   Search,
+  ShieldCheck,
   X,
   Server,
   Tag,
