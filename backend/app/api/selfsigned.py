@@ -2,10 +2,12 @@ import io
 import json
 import zipfile
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
+from cryptography.hazmat.primitives.asymmetric.types import CertificateIssuerPrivateKeyTypes, CertificateIssuerPublicKeyTypes
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -336,12 +338,12 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
 
     # Authority Key Identifier (from CA's public key)
     builder = builder.add_extension(
-        x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),
+        x509.AuthorityKeyIdentifier.from_issuer_public_key(cast(CertificateIssuerPublicKeyTypes, ca_cert.public_key())),
         critical=False,
     )
 
     # Sign with the CA's private key
-    cert = builder.sign(ca_key, hash_alg)
+    cert = builder.sign(cast(CertificateIssuerPrivateKeyTypes, ca_key), hash_alg)  # type: ignore[arg-type]
 
     cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
     key_pem = private_key.private_bytes(
@@ -430,8 +432,10 @@ def create_self_signed(
 
     # Generate
     if ca_record:
-        ca_key_pem = decrypt(ca_record.private_key_pem_encrypted)
-        cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)
+        assert ca_record.private_key_pem_encrypted is not None  # guarded by check above
+        assert ca_record.certificate_pem is not None  # guarded by check above
+        ca_key_pem = decrypt(ca_record.private_key_pem_encrypted)  # type: ignore[arg-type]
+        cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)  # type: ignore[arg-type]
     else:
         cert_pem, key_pem = _generate_self_signed(req)
 
@@ -781,7 +785,8 @@ def download_self_signed_zip(
     if not cert or not cert.certificate_pem:
         raise HTTPException(status_code=404, detail="Certificate not found")
 
-    key_pem = decrypt(cert.private_key_pem_encrypted)
+    assert cert.private_key_pem_encrypted is not None
+    key_pem = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
     if password:
         from cryptography.hazmat.primitives.serialization import BestAvailableEncryption
         key_obj = serialization.load_pem_private_key(key_pem.encode(), password=None)
@@ -830,7 +835,8 @@ def download_self_signed_pem(
         content = cert.certificate_pem
         filename = f"{safe_name}.crt"
     elif file_type == "privatekey":
-        content = decrypt(cert.private_key_pem_encrypted)
+        assert cert.private_key_pem_encrypted is not None
+        content = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
         if password:
             from cryptography.hazmat.primitives.serialization import BestAvailableEncryption
             key_obj = serialization.load_pem_private_key(content.encode(), password=None)
@@ -841,7 +847,8 @@ def download_self_signed_pem(
             ).decode()
         filename = f"{safe_name}.key"
     elif file_type == "combined":
-        key_pem = decrypt(cert.private_key_pem_encrypted)
+        assert cert.private_key_pem_encrypted is not None
+        key_pem = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
         content = key_pem + "\n" + cert.certificate_pem
         filename = f"{safe_name}-combined.pem"
     elif file_type == "chain":
@@ -885,7 +892,7 @@ def download_self_signed_pfx(
     if not cert or not cert.certificate_pem:
         raise HTTPException(status_code=404, detail="Certificate not found")
 
-    key_pem = decrypt(cert.private_key_pem_encrypted)
+    key_pem = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
     key_obj = serialization.load_pem_private_key(key_pem.encode(), password=None)
     cert_obj = x509.load_pem_x509_certificate(cert.certificate_pem.encode())
 
@@ -899,7 +906,7 @@ def download_self_signed_pfx(
     pfx_password = password.encode() if password else None
     pfx_data = pkcs12.serialize_key_and_certificates(
         name=cert.common_name.encode(),
-        key=key_obj,
+        key=cast(CertificateIssuerPrivateKeyTypes, key_obj),
         cert=cert_obj,
         cas=ca_certs,
         encryption_algorithm=(

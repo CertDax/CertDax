@@ -222,7 +222,8 @@ def get_agent(
             conditions.append(CertificateDeployment.self_signed_certificate_id.in_(visible_ss_ids))
         dep_query = dep_query.filter(or_(*conditions))
     else:
-        dep_query = dep_query.filter(False)
+        from sqlalchemy import false as _false
+        dep_query = dep_query.filter(_false())
 
     resp.deployment_count = dep_query.count()
     resp.deployed_count = dep_query.filter(CertificateDeployment.status == "deployed").count()
@@ -614,7 +615,7 @@ def get_install_script(
         # Fall back to user JWT auth
         try:
             from app.api.deps import get_current_user as _get_user
-            _get_user(token, db)
+            _get_user(token, db)  # type: ignore[arg-type]
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
 
@@ -717,10 +718,10 @@ def _generate_codesign_cert(ca_cert_pem: str, ca_key_pem: str, agent_name: str) 
         )
         # AuthorityKeyIdentifier links this cert back to the CA — required for chain building
         .add_extension(
-            cx509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),
+            cx509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),  # type: ignore[arg-type]
             critical=False,
         )
-        .sign(ca_key, hashes.SHA256())
+        .sign(ca_key, hashes.SHA256())  # type: ignore[arg-type]
     )
 
     cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
@@ -1002,7 +1003,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }}
 $ServiceName = "CertDaxAgent"
-$InstallDir  = "C:\ProgramData\CertDax"
+$InstallDir  = "C:\\ProgramData\\CertDax"
 
 Write-Host "Stopping CertDax Agent service..." -ForegroundColor Yellow
 Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
@@ -1010,9 +1011,9 @@ sc.exe delete $ServiceName | Out-Null
 Start-Sleep -Seconds 2
 
 Write-Host "Removing files..." -ForegroundColor Yellow
-Remove-Item -Path "$InstallDir\certdax-agent.exe" -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "$InstallDir\config.yaml"        -Force -ErrorAction SilentlyContinue
-Remove-Item -Path "$InstallDir\logs"               -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$InstallDir\\certdax-agent.exe" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$InstallDir\\config.yaml"        -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$InstallDir\\logs"               -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $MyInvocation.MyCommand.Path     -Force -ErrorAction SilentlyContinue
 Remove-Item -Path $InstallDir                      -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -1024,8 +1025,8 @@ Write-Host "Done! CertDax agent is running as a Windows service." -ForegroundCol
 Write-Host ""
 Write-Host "Useful commands:" -ForegroundColor DarkCyan
 Write-Host "  Check status : Get-Service -Name $ServiceName"
-Write-Host "  View logs    : Get-Content -Path `"$InstallDir\logs\certdax-agent.log`" -Tail 50"
-Write-Host "  Live logs    : Get-Content -Path `"$InstallDir\logs\certdax-agent.log`" -Wait -Tail 20"
+Write-Host "  View logs    : Get-Content -Path `"$InstallDir\\logs\\certdax-agent.log`" -Tail 50"
+Write-Host "  Live logs    : Get-Content -Path `"$InstallDir\\logs\\certdax-agent.log`" -Wait -Tail 20"
 Write-Host "  Uninstall    : powershell -ExecutionPolicy Bypass -File `"$UninstallPath`""
 """
 

@@ -1,5 +1,7 @@
 # Stage 1: Build agent binaries for all architectures
-FROM golang:1.23-alpine AS agent-builder
+FROM golang:1.24-alpine AS agent-builder
+
+RUN apk upgrade --no-cache
 
 ARG AGENT_VERSION=1.0.0
 
@@ -15,7 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -ldflags "-s -w -X main.vers
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-windows-amd64.exe .
 
 # Stage 2: Backend application
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_DISABLE_PIP_VERSION_CHECK=1
