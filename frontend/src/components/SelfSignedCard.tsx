@@ -1,5 +1,5 @@
 import { differenceInDays, format } from 'date-fns';
-import { Building2, FileLock2, ShieldAlert, ShieldCheck, User } from 'lucide-react';
+import { Building2, FileLock2, ShieldAlert, User } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { SelfSignedCertificate } from '../types';
 

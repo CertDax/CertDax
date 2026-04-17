@@ -5,8 +5,6 @@ import {
   Filter,
   Plus,
   Search,
-  ShieldCheck,
-  Building2,
   X,
   Server,
   Tag,
@@ -186,18 +184,7 @@ export default function SelfSigned() {
     }
   };
 
-  const isExpired = (expiresAt: string | null) => {
-    if (!expiresAt) return false;
-    return new Date(expiresAt) < new Date();
-  };
 
-  const isExpiringSoon = (expiresAt: string | null) => {
-    if (!expiresAt) return false;
-    const d = new Date(expiresAt);
-    const now = new Date();
-    const diff = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-    return diff > 0 && diff <= 30;
-  };
 
   if (loading) {
     return (
