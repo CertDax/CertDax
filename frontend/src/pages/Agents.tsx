@@ -563,9 +563,9 @@ sudo systemctl enable --now certdax-agent`}</pre>
                       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
                         <p className="text-sm font-medium text-slate-700 mb-1">Windows Installer wizard (.exe)</p>
                         <p className="text-xs text-slate-500">
-                          GUI setup wizard — installs the binary to <code className="font-mono bg-slate-100 px-1 rounded">C:\Program Files\CertDax\</code>.
-                          SmartScreen may warn; right-click → Properties → Unblock if needed.
-                          Available in the <strong>Install</strong> modal under <em>Advanced options</em>.
+                          A graphical installer that walks you through the setup and installs the binary to{' '}
+                          <code className="font-mono bg-slate-100 px-1 rounded">C:\Program Files\CertDax\</code>.
+                          Windows SmartScreen may show a warning — right-click the file, open Properties, and click <strong>Unblock</strong> to proceed.
                         </p>
                       </div>
                       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
