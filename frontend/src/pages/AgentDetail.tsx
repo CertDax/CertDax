@@ -70,6 +70,9 @@ export default function AgentDetailPage() {
   // Deleting state: keyed by "cert:ID" or "ss:ID" so we can match against
   // the backend's pending_removal_cert_ids / pending_removal_ss_ids lists.
   const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
+  // Ghost copies of certs being deleted — keeps the row visible even after
+  // the backend removes the AgentCertificate record from assigned_certificates.
+  const [ghostCerts, setGhostCerts] = useState<Map<string, import('../types').AgentCertificate>>(new Map());
 
   const fetchAgent = async () => {
     const { data } = await api.get(`/agents/${id}`);
@@ -133,6 +136,19 @@ export default function AgentDetailPage() {
     });
   }, [agent?.assigned_certificates, agent?.pending_removal_cert_ids, agent?.pending_removal_ss_ids]);
 
+  // Sync ghostCerts to deletingKeys — drop ghosts once their key is cleared
+  useEffect(() => {
+    if (ghostCerts.size === 0) return;
+    setGhostCerts((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const key of [...next.keys()]) {
+        if (!deletingKeys.has(key)) { next.delete(key); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [deletingKeys]);
+
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCertId) return;
@@ -165,14 +181,20 @@ export default function AgentDetailPage() {
       : ac?.self_signed_certificate_id
         ? `ss:${ac.self_signed_certificate_id}`
         : null;
-    if (key) setDeletingKeys((prev) => new Set(prev).add(key));
+    if (key && ac) {
+      setDeletingKeys((prev) => new Set(prev).add(key));
+      setGhostCerts((prev) => new Map(prev).set(key, ac));
+    }
     try {
       await api.delete(`/agents/${id}/certificates/${assignmentId}`);
       // "Deleting" stays until the backend reports pending_removal is gone
       // (i.e. the agent has confirmed removal via the status callback).
     } catch (err) {
       alert('Error detaching certificate');
-      if (key) setDeletingKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
+      if (key) {
+        setDeletingKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
+        setGhostCerts((prev) => { const next = new Map(prev); next.delete(key); return next; });
+      }
     }
   };
 
@@ -686,9 +708,14 @@ export default function AgentDetailPage() {
               <tbody className="divide-y divide-slate-200">
                 {/* ACME Certificates */}
                 {(() => {
-                  const acmeCerts = agent.assigned_certificates
-                    .filter((ac) => ac.certificate_type !== 'self-signed')
-                    .sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
+                  const assignedIds = new Set(agent.assigned_certificates.map((ac) => ac.id));
+                  const acmeGhosts = [...ghostCerts.entries()]
+                    .filter(([key, ac]) => key.startsWith('cert:') && !assignedIds.has(ac.id))
+                    .map(([, ac]) => ac);
+                  const acmeCerts = [
+                    ...agent.assigned_certificates.filter((ac) => ac.certificate_type !== 'self-signed'),
+                    ...acmeGhosts,
+                  ].sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
                   if (acmeCerts.length === 0) return null;
                   return (
                     <>
@@ -730,9 +757,14 @@ export default function AgentDetailPage() {
 
                 {/* Self-Signed Certificates */}
                 {(() => {
-                  const ssCerts = agent.assigned_certificates
-                    .filter((ac) => ac.certificate_type === 'self-signed')
-                    .sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
+                  const assignedIds = new Set(agent.assigned_certificates.map((ac) => ac.id));
+                  const ssGhosts = [...ghostCerts.entries()]
+                    .filter(([key, ac]) => key.startsWith('ss:') && !assignedIds.has(ac.id))
+                    .map(([, ac]) => ac);
+                  const ssCerts = [
+                    ...agent.assigned_certificates.filter((ac) => ac.certificate_type === 'self-signed'),
+                    ...ssGhosts,
+                  ].sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
                   if (ssCerts.length === 0) return null;
                   return (
                     <>
