@@ -96,6 +96,7 @@ export interface AgentCertificate {
   expires_at: string | null;
   auto_deploy: boolean;
   deploy_format: string;
+  deployment_status: string | null;
   created_at: string;
 }
 

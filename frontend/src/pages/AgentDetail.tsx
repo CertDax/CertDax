@@ -67,6 +67,9 @@ export default function AgentDetailPage() {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const prevLogCountRef = useRef(0);
 
+  // Optimistic deleting state for certificate assignments
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+
   const fetchAgent = async () => {
     const { data } = await api.get(`/agents/${id}`);
     setAgent(data);
@@ -122,12 +125,15 @@ export default function AgentDetailPage() {
 
   const handleUnassign = async (assignmentId: number) => {
     if (!confirm('Detach certificate from this agent?')) return;
+    setDeletingIds(prev => new Set(prev).add(assignmentId));
     try {
       await api.delete(`/agents/${id}/certificates/${assignmentId}`);
     } catch (err) {
       alert('Error detaching certificate');
+      setDeletingIds(prev => { const next = new Set(prev); next.delete(assignmentId); return next; });
     }
     await fetchAgent();
+    setDeletingIds(prev => { const next = new Set(prev); next.delete(assignmentId); return next; });
   };
 
   const handleDelete = async () => {
@@ -663,11 +669,19 @@ export default function AgentDetailPage() {
                               {ac.certificate_name || 'Unknown'}
                             </Link>
                           </td>
-                          <td className="px-6 py-4"><StatusBadge status={ac.certificate_status || 'unknown'} /></td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={
+                              deletingIds.has(ac.id)
+                                ? 'deleting'
+                                : ac.deployment_status === 'deployed'
+                                  ? (ac.certificate_status || 'valid')
+                                  : (ac.deployment_status || 'pending')
+                            } />
+                          </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingIds.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>
@@ -699,11 +713,19 @@ export default function AgentDetailPage() {
                               {ac.certificate_name || 'Unknown'}
                             </Link>
                           </td>
-                          <td className="px-6 py-4"><StatusBadge status={ac.certificate_status || 'unknown'} /></td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={
+                              deletingIds.has(ac.id)
+                                ? 'deleting'
+                                : ac.deployment_status === 'deployed'
+                                  ? (ac.certificate_status || 'valid')
+                                  : (ac.deployment_status || 'pending')
+                            } />
+                          </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingIds.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>

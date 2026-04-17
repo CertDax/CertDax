@@ -200,6 +200,12 @@ def get_agent(
             cr.certificate_status = ac.certificate.status
             cr.expires_at = ac.certificate.expires_at
             cr.certificate_type = "acme"
+            from sqlalchemy import desc as _desc
+            _dep = db.query(CertificateDeployment).filter(
+                CertificateDeployment.target_id == agent_id,
+                CertificateDeployment.certificate_id == ac.certificate_id,
+            ).order_by(_desc(CertificateDeployment.created_at)).first()
+            cr.deployment_status = _dep.status if _dep else "pending"
         elif ac.self_signed_certificate_id and ac.self_signed_certificate:
             if ac.self_signed_certificate.group_id not in ss_gids:
                 continue
@@ -208,6 +214,12 @@ def get_agent(
             cr.certificate_status = "valid"
             cr.expires_at = ac.self_signed_certificate.expires_at
             cr.certificate_type = "self-signed"
+            from sqlalchemy import desc as _desc
+            _dep = db.query(CertificateDeployment).filter(
+                CertificateDeployment.target_id == agent_id,
+                CertificateDeployment.self_signed_certificate_id == ac.self_signed_certificate_id,
+            ).order_by(_desc(CertificateDeployment.created_at)).first()
+            cr.deployment_status = _dep.status if _dep else "pending"
         else:
             continue
         cert_responses.append(cr)

@@ -62,6 +62,7 @@ class AgentCertificateResponse(BaseModel):
     expires_at: datetime | None = None
     auto_deploy: bool = True
     deploy_format: str = "crt"
+    deployment_status: str = "pending"
     created_at: datetime
 
     model_config = {"from_attributes": True}
