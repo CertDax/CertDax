@@ -1,4 +1,4 @@
-[![CodeQL](https://github.com/CertDax/CertDax/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main&event=push)](https://github.com/CertDax/CertDax/actions/workflows/github-code-scanning/codeql)
+[![CodeQL](https://github.com/CertDax/CertDax/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/CertDax/CertDax/actions/workflows/github-code-scanning/codeql)
 
 # Security Policy
 
