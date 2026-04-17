@@ -291,7 +291,11 @@ export default function AgentGroupDetailPage() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {group.members.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50">
+                  <tr
+                    key={m.id}
+                    className="hover:bg-slate-50 cursor-pointer"
+                    onClick={() => navigate(`/agents/${m.target_id}`)}
+                  >
                     <td className="px-6 py-4">
                       <Link
                         to={`/agents/${m.target_id}`}
@@ -318,7 +322,10 @@ export default function AgentGroupDetailPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => handleRemoveMember(m.target_id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveMember(m.target_id);
+                        }}
                         className="text-red-500 hover:text-red-700 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
