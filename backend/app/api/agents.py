@@ -994,7 +994,10 @@ Write-Host "   Service '$ServiceName' installed and started." -ForegroundColor G
 # Write uninstall helper script
 $UninstallPath = "$InstallDir\\uninstall.ps1"
 @'
-#Requires -RunAsAdministrator
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Start-Process powershell -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -File `"$($MyInvocation.MyCommand.Path)`""
+    exit
+}
 $ServiceName = "CertDaxAgent"
 $InstallDir  = "C:\ProgramData\CertDax"
 
