@@ -413,7 +413,7 @@ export default function AgentDetailPage() {
         </div>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase font-medium mb-1">IP Address</p>
-          <p className="font-semibold text-slate-900 font-mono text-sm">
+          <p className="font-semibold text-slate-900 font-mono text-sm break-all">
             {agent.agent_ip || '-'}
           </p>
         </div>
