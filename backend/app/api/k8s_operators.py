@@ -85,6 +85,7 @@ def _operator_response(op: K8sOperator, db: Session | None = None) -> dict:
                     "secret_name": d.secret_name,
                     "namespace": d.namespace,
                     "ready": False,
+                    "dashboard_pending": True,
                     "message": "Waiting for operator to pick up",
                     "expires_at": None,
                     "last_synced_at": None,

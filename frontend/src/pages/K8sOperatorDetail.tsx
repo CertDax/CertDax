@@ -67,6 +67,7 @@ export default function K8sOperatorDetailPage() {
   const [deploySubmitting, setDeploySubmitting] = useState(false);
   const [availableCerts, setAvailableCerts] = useState<(Certificate | SelfSignedCertificate)[]>([]);
   const [deployments, setDeployments] = useState<{ id: number; certificate_id: number; certificate_type: string; secret_name: string; namespace: string }[]>([]);
+  const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
 
   const fetchOperator = async () => {
     try {
@@ -168,18 +169,22 @@ export default function K8sOperatorDetailPage() {
 
   const handleDeleteDeployment = async (certId: number, certType: string) => {
     const dep = deployments.find(d => d.certificate_id === certId && d.certificate_type === certType);
+    const key = `${certId}:${certType}`;
     if (dep) {
       // Dashboard-deployed cert: remove the deployment record
       if (!confirm('Remove this certificate deployment? The operator will delete the TLS secret from the cluster.')) return;
+      setDeletingKeys(prev => new Set(prev).add(key));
       try {
         await api.delete(`/k8s-operators/${id}/deployments/${dep.id}`);
         fetchOperator();
       } catch (err) {
         console.error('Delete deployment failed', err);
+        setDeletingKeys(prev => { const s = new Set(prev); s.delete(key); return s; });
       }
     } else {
       // YAML-created cert: request CR deletion via the operator
       if (!confirm('Delete this certificate CR from the cluster? The operator will remove the TLS secret and the CRD.')) return;
+      setDeletingKeys(prev => new Set(prev).add(key));
       try {
         await api.post(`/k8s-operators/${id}/delete-cr`, {
           certificate_id: certId,
@@ -188,6 +193,7 @@ export default function K8sOperatorDetailPage() {
         fetchOperator();
       } catch (err) {
         console.error('Delete CR failed', err);
+        setDeletingKeys(prev => { const s = new Set(prev); s.delete(key); return s; });
       }
     }
   };
@@ -763,12 +769,17 @@ kubectl get cdxcert`}
                 {operator.certificates.map((cert, i) => (
                   <tr key={i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-3">
-                      {cert.ready ? (
+                      {deletingKeys.has(`${cert.certificate_id}:${cert.type}`) ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
+                          <Clock className="w-3.5 h-3.5 animate-spin" />
+                          Deleting
+                        </span>
+                      ) : cert.ready ? (
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
                           <CheckCircle className="w-3.5 h-3.5" />
                           Ready
                         </span>
-                      ) : cert.message === 'Waiting for certificate to be issued' || !cert.message ? (
+                      ) : (cert as any).dashboard_pending || cert.message === 'Waiting for certificate to be issued' || !cert.message ? (
                         <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full" title={cert.message || 'Pending'}>
                           <Clock className="w-3.5 h-3.5" />
                           Pending
@@ -822,7 +833,8 @@ kubectl get cdxcert`}
                     <td className="px-6 py-3">
                       <button
                         onClick={() => handleDeleteDeployment(cert.certificate_id, cert.type)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        disabled={deletingKeys.has(`${cert.certificate_id}:${cert.type}`)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Remove deployment"
                       >
                         <Trash2 className="w-4 h-4" />
