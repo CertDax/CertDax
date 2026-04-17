@@ -146,7 +146,9 @@ def download_agent_binary(
             raise HTTPException(status_code=401, detail="Invalid token")
 
     binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
-    binary_path = os.path.join(binary_dir, f"certdax-agent-linux-{arch}")
+    binary_path = os.path.normpath(os.path.join(binary_dir, f"certdax-agent-linux-{arch}"))
+    if not binary_path.startswith(binary_dir + os.sep) and binary_path != binary_dir:
+        raise HTTPException(status_code=400, detail="Invalid path")
 
     if not os.path.isfile(binary_path):
         raise HTTPException(status_code=404, detail=f"Binary not found for architecture: {arch}")
@@ -848,7 +850,9 @@ def download_windows_agent_binary(
     if arch not in _valid_arches:
         raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {', '.join(sorted(_valid_arches))}")
     binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
-    windows_binary = os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe")
+    windows_binary = os.path.normpath(os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe"))
+    if not windows_binary.startswith(binary_dir + os.sep) and windows_binary != binary_dir:
+        raise HTTPException(status_code=400, detail="Invalid path")
     if not os.path.isfile(windows_binary):
         raise HTTPException(
             status_code=404,
@@ -1239,7 +1243,9 @@ def download_windows_installer(
     if arch not in _valid_arches:
         raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {', '.join(sorted(_valid_arches))}")
     binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
-    windows_binary = os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe")
+    windows_binary = os.path.normpath(os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe"))
+    if not windows_binary.startswith(binary_dir + os.sep) and windows_binary != binary_dir:
+        raise HTTPException(status_code=400, detail="Invalid path")
     if not os.path.isfile(windows_binary):
         raise HTTPException(
             status_code=404,
