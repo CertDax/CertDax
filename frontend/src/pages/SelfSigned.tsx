@@ -619,7 +619,7 @@ export default function SelfSigned() {
           <p className="text-sm text-slate-400">Click "New certificate" to create one</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
           {deleteError && (
             <div className="bg-amber-50 border-b border-amber-200 p-6">
               <p className="font-medium text-amber-900 mb-2">
@@ -651,6 +651,7 @@ export default function SelfSigned() {
               </div>
             </div>
           )}
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
@@ -759,6 +760,7 @@ export default function SelfSigned() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
