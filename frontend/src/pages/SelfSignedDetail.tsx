@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -798,7 +799,7 @@ export default function SelfSignedDetail() {
 
 /* ---------- helper components ---------- */
 
-function DetailRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function DetailRow({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   if (!value) return null;
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-1 py-2 border-b border-slate-100 last:border-0">
