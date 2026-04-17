@@ -298,6 +298,22 @@ export default function K8sOperatorDetailPage() {
               )}
             </button>
           </div>
+          <div className="mt-3">
+            <p className="text-xs font-medium text-amber-700 mb-1">Apply to Kubernetes:</p>
+            <div className="relative bg-slate-900 rounded-lg p-3">
+              <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
+{`kubectl patch secret certdax-operator-operator-token -n certdax-system \\
+  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\
+kubectl rollout restart deployment certdax-operator -n certdax-system`}
+              </pre>
+              <button
+                onClick={() => copyToClipboard(`kubectl patch secret certdax-operator-operator-token -n certdax-system \\\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\\nkubectl rollout restart deployment certdax-operator -n certdax-system`, 'patch-cmd')}
+                className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
+              >
+                {copied === 'patch-cmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
