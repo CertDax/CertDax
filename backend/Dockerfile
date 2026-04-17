@@ -17,7 +17,8 @@ RUN CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -ldflags "-s -w -X main.vers
 # Stage 2: Backend application
 FROM python:3.12-slim
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
