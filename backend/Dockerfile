@@ -6,7 +6,7 @@ ARG AGENT_VERSION=1.0.0
 WORKDIR /build
 COPY agent/go.mod agent/go.sum ./
 RUN go mod download
-COPY agent/main.go agent/certstore_windows.go agent/certstore_other.go ./
+COPY agent/*.go ./
 
 RUN CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-linux-amd64   . && \
     CGO_ENABLED=0 GOOS=linux  GOARCH=arm64 go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-linux-arm64   . && \
