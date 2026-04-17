@@ -627,8 +627,8 @@ export default function SelfSigned() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <form onSubmit={(e) => { e.preventDefault(); fetchCerts(); }} className="flex-1">
+      <div className="flex flex-col gap-3 mb-6">
+        <form onSubmit={(e) => { e.preventDefault(); fetchCerts(); }}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
