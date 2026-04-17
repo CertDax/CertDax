@@ -67,8 +67,8 @@ export default function AgentDetailPage() {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const prevLogCountRef = useRef(0);
 
-  // Optimistic deleting state for certificate assignments
-  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+  // Optimistic deleting state: maps assignment ID → agent's last_seen at the moment of deletion
+  const [deletingInfo, setDeletingInfo] = useState<Map<number, string | null>>(new Map());
 
   const fetchAgent = async () => {
     const { data } = await api.get(`/agents/${id}`);
@@ -101,15 +101,27 @@ export default function AgentDetailPage() {
     prevLogCountRef.current = newCount;
   }, [agent?.recent_logs, autoScroll]);
 
-  // Clear deletingIds once the cert is confirmed gone from the server
+  // Clear deleting state only once the cert is gone AND the agent has sent
+  // a new heartbeat since the deletion was triggered (proves the agent processed it).
   useEffect(() => {
-    if (!agent || deletingIds.size === 0) return;
+    if (!agent || deletingInfo.size === 0) return;
     const currentIds = new Set(agent.assigned_certificates.map((ac) => ac.id));
-    setDeletingIds((prev) => {
-      const next = new Set([...prev].filter((id) => currentIds.has(id)));
-      return next.size === prev.size ? prev : next;
+    setDeletingInfo((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const [assignId, lastSeenAtDeletion] of next) {
+        const certGone = !currentIds.has(assignId);
+        const agentCheckedInSince =
+          !lastSeenAtDeletion ||
+          (!!agent.last_seen && agent.last_seen > lastSeenAtDeletion);
+        if (certGone && agentCheckedInSince) {
+          next.delete(assignId);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
-  }, [agent?.assigned_certificates]);
+  }, [agent?.assigned_certificates, agent?.last_seen]);
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,14 +147,14 @@ export default function AgentDetailPage() {
 
   const handleUnassign = async (assignmentId: number) => {
     if (!confirm('Detach certificate from this agent?')) return;
-    setDeletingIds(prev => new Set(prev).add(assignmentId));
+    const lastSeenAtDeletion = agent?.last_seen ?? null;
+    setDeletingInfo(prev => new Map(prev).set(assignmentId, lastSeenAtDeletion));
     try {
       await api.delete(`/agents/${id}/certificates/${assignmentId}`);
-      // Let the 5-second poll remove the cert from the list so the
-      // "Deleting" badge stays visible until the server confirms it's gone.
+      // "Deleting" stays visible until the agent checks in after the deletion.
     } catch (err) {
       alert('Error detaching certificate');
-      setDeletingIds(prev => { const next = new Set(prev); next.delete(assignmentId); return next; });
+      setDeletingInfo(prev => { const next = new Map(prev); next.delete(assignmentId); return next; });
     }
   };
 
@@ -681,7 +693,7 @@ export default function AgentDetailPage() {
                           </td>
                           <td className="px-6 py-4">
                             <StatusBadge status={
-                              deletingIds.has(ac.id)
+                              deletingInfo.has(ac.id)
                                 ? 'deleting'
                                 : ac.deployment_status === 'deployed'
                                   ? (ac.certificate_status || 'valid')
@@ -691,7 +703,7 @@ export default function AgentDetailPage() {
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingIds.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingInfo.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>
@@ -725,7 +737,7 @@ export default function AgentDetailPage() {
                           </td>
                           <td className="px-6 py-4">
                             <StatusBadge status={
-                              deletingIds.has(ac.id)
+                              deletingInfo.has(ac.id)
                                 ? 'deleting'
                                 : ac.deployment_status === 'deployed'
                                   ? (ac.certificate_status || 'valid')
@@ -735,7 +747,7 @@ export default function AgentDetailPage() {
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingIds.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingInfo.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>
