@@ -18,10 +18,17 @@ import {
   Download,
   Settings,
   Play,
+  ShieldCheck,
 } from 'lucide-react';
 import api from '../services/api';
 import type { DeploymentTarget } from '../types';
 import StatusBadge from '../components/StatusBadge';
+
+interface SelfSignedCA {
+  id: number;
+  common_name: string;
+  expires_at: string | null;
+}
 
 export default function Agents() {
   const navigate = useNavigate();
@@ -36,6 +43,19 @@ export default function Agents() {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
   const [showSetup, setShowSetup] = useState(false);
+  const [installShell, setInstallShell] = useState<'bash' | 'powershell'>('bash');
+
+  // Windows agent state
+  const [osType, setOsType] = useState<'linux' | 'windows'>('linux');
+  const [windowsCaId, setWindowsCaId] = useState<number | ''>('');
+  const [availableCAs, setAvailableCAs] = useState<SelfSignedCA[]>([]);
+  const [loadingCAs, setLoadingCAs] = useState(false);
+
+  // Install modal Windows state
+  const [modalCaId, setModalCaId] = useState<number | ''>('');
+  const [downloadingBinary, setDownloadingBinary] = useState(false);
+  const [downloadingScript, setDownloadingScript] = useState(false);
+  const [downloadingInstaller, setDownloadingInstaller] = useState(false);
 
   // Form state
   const [name, setName] = useState('');
@@ -51,18 +71,42 @@ export default function Agents() {
     setLoading(false);
   };
 
+  const fetchCAs = async () => {
+    setLoadingCAs(true);
+    try {
+      const { data } = await api.get('/self-signed');
+      setAvailableCAs((data as SelfSignedCA[]).filter((c: any) => c.is_ca === true));
+    } finally {
+      setLoadingCAs(false);
+    }
+  };
+
   useEffect(() => {
     fetchAgents();
     const interval = setInterval(fetchAgents, 5000);
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch CAs when Windows OS is selected in either form or modal
+  useEffect(() => {
+    if (osType === 'windows') {
+      if (availableCAs.length === 0) fetchCAs();
+    }
+  }, [osType]);
+
+  useEffect(() => {
+    if (showInstallModal && availableCAs.length === 0) {
+      fetchCAs();
+    }
+  }, [showInstallModal]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await api.post('/agents', {
       name,
       hostname,
-      deploy_path: deployPath,
+      os_type: osType,
+      deploy_path: osType === 'windows' ? 'C:\\ProgramData\\CertDax\\certs' : deployPath,
       reload_command: reloadCommand || null,
       pre_deploy_script: preDeployScript || null,
       post_deploy_script: postDeployScript || null,
@@ -73,9 +117,13 @@ export default function Agents() {
       name: data.name,
       token: data.agent_token,
     });
+    // Pre-select the CA chosen during creation
+    if (osType === 'windows' && windowsCaId) setModalCaId(windowsCaId);
     setName('');
     setHostname('');
+    setOsType('linux');
     setDeployPath('/etc/ssl/certs');
+    setWindowsCaId('');
     setReloadCommand('');
     setPreDeployScript('');
     setPostDeployScript('');
@@ -102,7 +150,83 @@ export default function Agents() {
   const getCurlCommand = () => {
     if (!showInstallModal) return '';
     const baseUrl = window.location.origin;
+    if (installShell === 'powershell') {
+      return `$headers = @{ Authorization = "Bearer ${showInstallModal.token}" }\nInvoke-WebRequest -Uri "${baseUrl}/api/agents/${showInstallModal.id}/install-script" -Headers $headers -OutFile certdax-install.sh\n# Copy to target server and run: sudo sh certdax-install.sh`;
+    }
     return `curl -fsSL -H "Authorization: Bearer ${showInstallModal.token}" ${baseUrl}/api/agents/${showInstallModal.id}/install-script | sudo sh`;
+  };
+
+  const downloadWindowsBinary = async () => {
+    if (!showInstallModal || !modalCaId) return;
+    setDownloadingBinary(true);
+    try {
+      const resp = await api.get(
+        `/agents/${showInstallModal.id}/install/windows-binary?ca_id=${modalCaId}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certdax-agent-${showInstallModal.name.replace(/\s+/g, '_')}.exe`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingBinary(false);
+    }
+  };
+
+  const downloadCACert = async () => {
+    if (!showInstallModal || !modalCaId) return;
+    try {
+      const resp = await api.get(
+        `/agents/${showInstallModal.id}/install/ca-cert?ca_id=${modalCaId}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certdax-ca-${showInstallModal.name.replace(/\s+/g, '_')}.crt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { /* ignore */ }
+  };
+
+  const downloadWindowsScript = async () => {
+    if (!showInstallModal || !modalCaId) return;
+    setDownloadingScript(true);
+    try {
+      const resp = await api.get(
+        `/agents/${showInstallModal.id}/install/windows-script?ca_id=${modalCaId}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `install-certdax-agent-${showInstallModal.name.replace(/\s+/g, '_')}.ps1`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingScript(false);
+    }
+  };
+
+  const downloadWindowsInstaller = async () => {
+    if (!showInstallModal || !modalCaId) return;
+    setDownloadingInstaller(true);
+    try {
+      const resp = await api.get(
+        `/agents/${showInstallModal.id}/install/windows-installer?ca_id=${modalCaId}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certdax-agent-${showInstallModal.name.replace(/\s+/g, '_')}-setup.exe`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingInstaller(false);
+    }
   };
 
   const onlineCount = agents.filter((a) => a.status === 'online').length;
@@ -401,6 +525,69 @@ sudo systemctl enable --now certdax-agent`}</pre>
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
           <h3 className="font-semibold text-slate-900 mb-4">Register new agent</h3>
           <form onSubmit={handleCreate} className="space-y-4">
+            {/* OS selection */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Target OS
+              </label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setOsType('linux'); setDeployPath('/etc/ssl/certs'); }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${osType === 'linux' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Server className="w-4 h-4" />
+                  Linux
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setOsType('windows'); setDeployPath('C:\\ProgramData\\CertDax\\certs'); if (availableCAs.length === 0) fetchCAs(); }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${osType === 'windows' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+                >
+                  <Monitor className="w-4 h-4" />
+                  Windows
+                </button>
+              </div>
+            </div>
+
+            {/* Windows: CA selection */}
+            {osType === 'windows' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-2 mb-3">
+                  <ShieldCheck className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">Code-signing CA required</p>
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      Select a CA to sign the Windows agent binary. Install this CA as a Trusted Root
+                      on the target machine to suppress SmartScreen warnings.
+                    </p>
+                  </div>
+                </div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Signing CA
+                </label>
+                {loadingCAs ? (
+                  <p className="text-sm text-slate-500">Loading CAs…</p>
+                ) : availableCAs.length === 0 ? (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    No CA certificates found. Create a self-signed CA first under <strong>Self-Signed Certificates</strong>.
+                  </p>
+                ) : (
+                  <select
+                    value={windowsCaId}
+                    onChange={(e) => setWindowsCaId(e.target.value === '' ? '' : Number(e.target.value))}
+                    required={osType === 'windows'}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                  >
+                    <option value="">Select a CA…</option>
+                    {availableCAs.map((ca) => (
+                      <option key={ca.id} value={ca.id}>{ca.common_name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -429,57 +616,61 @@ sudo systemctl enable --now certdax-agent`}</pre>
                 />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Deploy path
-                </label>
-                <input
-                  type="text"
-                  value={deployPath}
-                  onChange={(e) => setDeployPath(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                />
+            {osType === 'linux' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Deploy path
+                  </label>
+                  <input
+                    type="text"
+                    value={deployPath}
+                    onChange={(e) => setDeployPath(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Reload command
+                  </label>
+                  <input
+                    type="text"
+                    value={reloadCommand}
+                    onChange={(e) => setReloadCommand(e.target.value)}
+                    placeholder="systemctl reload nginx"
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Reload command
-                </label>
-                <input
-                  type="text"
-                  value={reloadCommand}
-                  onChange={(e) => setReloadCommand(e.target.value)}
-                  placeholder="systemctl reload nginx"
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                />
+            )}
+            {osType === 'linux' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Pre-deploy script <span className="text-slate-400 font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    value={preDeployScript}
+                    onChange={(e) => setPreDeployScript(e.target.value)}
+                    placeholder={"#!/bin/bash\n# Executed before deployment"}
+                    rows={4}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Post-deploy script <span className="text-slate-400 font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    value={postDeployScript}
+                    onChange={(e) => setPostDeployScript(e.target.value)}
+                    placeholder={"#!/bin/bash\n# Executed after deployment"}
+                    rows={4}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono text-sm"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Pre-deploy script <span className="text-slate-400 font-normal">(optional)</span>
-                </label>
-                <textarea
-                  value={preDeployScript}
-                  onChange={(e) => setPreDeployScript(e.target.value)}
-                  placeholder={"#!/bin/bash\n# Executed before deployment"}
-                  rows={4}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Post-deploy script <span className="text-slate-400 font-normal">(optional)</span>
-                </label>
-                <textarea
-                  value={postDeployScript}
-                  onChange={(e) => setPostDeployScript(e.target.value)}
-                  placeholder={"#!/bin/bash\n# Executed after deployment"}
-                  rows={4}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-mono text-sm"
-                />
-              </div>
-            </div>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
@@ -490,7 +681,8 @@ sudo systemctl enable --now certdax-agent`}</pre>
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium"
+                disabled={osType === 'windows' && (availableCAs.length === 0 || windowsCaId === '')}
+                className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Create agent
               </button>
@@ -588,7 +780,10 @@ sudo systemctl enable --now certdax-agent`}</pre>
       </div>
 
       {/* Install modal */}
-      {showInstallModal && (
+      {showInstallModal && (() => {
+        const agentRecord = agents.find(a => a.id === showInstallModal.id);
+        const isWindows = agentRecord?.os_type === 'windows';
+        return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
@@ -597,14 +792,11 @@ sudo systemctl enable --now certdax-agent`}</pre>
                   Install agent: {showInstallModal.name}
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  Run this command on the target server
+                  {isWindows ? 'Windows agent installer' : 'Run this command on the target server'}
                 </p>
               </div>
               <button
-                onClick={() => {
-                  setShowInstallModal(null);
-                  setShowToken(false);
-                }}
+                onClick={() => { setShowInstallModal(null); setShowToken(false); setModalCaId(''); }}
                 className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
               >
                 <X className="w-5 h-5" />
@@ -612,88 +804,253 @@ sudo systemctl enable --now certdax-agent`}</pre>
             </div>
 
             <div className="p-6 space-y-5">
-              {/* curl command */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  <Terminal className="w-4 h-4 inline mr-1" />
-                  Installation command
-                </label>
-                <div className="bg-slate-900 rounded-lg p-4 relative group">
-                  <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
-                    {getCurlCommand()}
-                  </pre>
-                  <button
-                    onClick={() => copyToClipboard(getCurlCommand(), 'curl')}
-                    className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-                  >
-                    {copied === 'curl' ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
+              {isWindows ? (
+                <>
+                  {/* Windows installation flow */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <Monitor className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-800">Windows Agent</p>
+                        <p className="text-xs text-blue-600 mt-0.5">
+                          The installer will download a signed binary, install the CA cert into
+                          Trusted Root Certification Authorities, and register the agent as a Windows service.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
 
-              {/* Token */}
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Agent Token
-                </label>
-                <p className="text-xs text-amber-600 mb-2">
-                  This token is only shown once. A new token will be generated with a new installation command.
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-mono text-slate-900 overflow-x-auto">
-                    {showToken
-                      ? showInstallModal.token
-                      : '••••••••••••••••••••••••••••••••'}
-                  </code>
-                  <button
-                    onClick={() => setShowToken(!showToken)}
-                    className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-                  >
-                    {showToken ? (
-                      <EyeOff className="w-4 h-4" />
+                  {/* CA selector */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">
+                      <ShieldCheck className="w-4 h-4 inline mr-1" />
+                      Signing CA
+                    </label>
+                    <p className="text-xs text-slate-500 mb-2">
+                      Select the CA that will sign the agent binary. This CA must be installed as a
+                      Trusted Root on the target machine (the installer does this automatically).
+                    </p>
+                    {loadingCAs ? (
+                      <p className="text-sm text-slate-500">Loading CAs…</p>
+                    ) : availableCAs.length === 0 ? (
+                      <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                        No CA certificates found. Create a self-signed CA under <strong>Self-Signed Certificates</strong>.
+                      </p>
                     ) : (
-                      <Eye className="w-4 h-4" />
+                      <select
+                        value={modalCaId}
+                        onChange={(e) => setModalCaId(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                      >
+                        <option value="">Select a CA…</option>
+                        {availableCAs.map((ca) => (
+                          <option key={ca.id} value={ca.id}>{ca.common_name}</option>
+                        ))}
+                      </select>
                     )}
-                  </button>
-                  <button
-                    onClick={() =>
-                      copyToClipboard(showInstallModal.token, 'token')
-                    }
-                    className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-                  >
-                    {copied === 'token' ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
+                  </div>
 
-              {/* Manual install */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-blue-800 mb-2">
-                  Manual installation
-                </h4>
-                <p className="text-xs text-blue-700">
-                  If the curl command doesn't work, you can manually copy the binary
-                  to <code className="bg-blue-100 px-1 rounded">/usr/local/bin/certdax-agent</code> and
-                  configure <code className="bg-blue-100 px-1 rounded">/etc/certdax/config.yaml</code> with
-                  the API URL and token.
-                </p>
-              </div>
+                  {/* Primary: NSIS Windows Installer */}
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 mb-2">Install</p>
+                    <div className="border-2 border-emerald-200 bg-emerald-50 rounded-xl p-5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-emerald-100 rounded-lg flex-shrink-0">
+                          <Download className="w-5 h-5 text-emerald-700" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-900">Windows Installer (.exe)</p>
+                          <p className="text-xs text-emerald-700 mt-0.5">
+                            A standard Windows setup wizard. Installs the CA cert, the signed agent binary,
+                            writes the config, and registers the Windows service — all in one click.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={downloadWindowsInstaller}
+                        disabled={!modalCaId || downloadingInstaller}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        {downloadingInstaller ? 'Building installer…' : 'Download setup.exe'}
+                      </button>
+                      {!modalCaId && (
+                        <p className="text-xs text-emerald-700 mt-2 text-center">Select a signing CA above to enable download</p>
+                      )}
+                      {modalCaId && (
+                        <p className="text-xs text-slate-500 mt-2 text-center">
+                          Run as administrator — wizard will guide through the install
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Secondary: alternatives */}
+                  <details className="group">
+                    <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700 select-none list-none flex items-center gap-1">
+                      <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+                      Advanced / scripted install options
+                    </summary>
+                    <div className="mt-3 space-y-2">
+                      {/* PowerShell script */}
+                      <div className="border border-slate-200 rounded-lg p-4">
+                        <p className="text-xs font-semibold text-slate-700 mb-1">PowerShell unattended installer</p>
+                        <p className="text-xs text-slate-500 mb-2">
+                          Same steps as the wizard but runs silently — useful for automation and RMM tools.
+                        </p>
+                        <button
+                          onClick={downloadWindowsScript}
+                          disabled={!modalCaId || downloadingScript}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          {downloadingScript ? 'Generating…' : 'Download installer.ps1'}
+                        </button>
+                        {modalCaId && (
+                          <p className="text-xs text-slate-400 mt-2">
+                            Run: <code className="bg-slate-100 px-1 rounded">powershell -ExecutionPolicy Bypass -File installer.ps1</code>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Individual files */}
+                      <div className="border border-slate-200 rounded-lg p-4">
+                        <p className="text-xs font-semibold text-slate-700 mb-2">Individual files</p>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={downloadWindowsBinary}
+                            disabled={!modalCaId || downloadingBinary}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            {downloadingBinary ? 'Signing…' : 'certdax-agent.exe (signed)'}
+                          </button>
+                          <button
+                            onClick={downloadCACert}
+                            disabled={!modalCaId}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            CA Certificate (.crt)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* Windows cert deployment info */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-slate-700 mb-2">Certificate deployment on Windows</h4>
+                    <ul className="space-y-1.5 text-xs text-slate-600">
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-0.5">▸</span>
+                        <span><strong>Root CAs</strong> are installed into <code className="bg-slate-100 px-1 rounded">Cert:\LocalMachine\Root</code> (Trusted Root Certification Authorities)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-0.5">▸</span>
+                        <span><strong>Self-signed certificates</strong> are installed into <code className="bg-slate-100 px-1 rounded">Cert:\LocalMachine\My</code> (Personal)</span>
+                      </li>
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Linux installation flow */}
+                  {/* curl command */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-semibold text-slate-700">
+                        <Terminal className="w-4 h-4 inline mr-1" />
+                        Installation command
+                      </label>
+                      <div className="flex rounded-md overflow-hidden border border-slate-300 text-xs">
+                        <button
+                          onClick={() => setInstallShell('bash')}
+                          className={`px-2.5 py-0.5 font-medium transition-colors ${installShell === 'bash' ? 'bg-blue-100 text-blue-800' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          Bash
+                        </button>
+                        <button
+                          onClick={() => setInstallShell('powershell')}
+                          className={`px-2.5 py-0.5 font-medium transition-colors border-l border-slate-300 ${installShell === 'powershell' ? 'bg-blue-100 text-blue-800' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          PowerShell
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-slate-900 rounded-lg p-4 relative group">
+                      <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
+                        {getCurlCommand()}
+                      </pre>
+                      <button
+                        onClick={() => copyToClipboard(getCurlCommand(), 'curl')}
+                        className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+                      >
+                        {copied === 'curl' ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Token */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Agent Token
+                    </label>
+                    <p className="text-xs text-amber-600 mb-2">
+                      This token is only shown once. A new token will be generated with a new installation command.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-mono text-slate-900 overflow-x-auto">
+                        {showToken
+                          ? showInstallModal.token
+                          : '••••••••••••••••••••••••••••••••'}
+                      </code>
+                      <button
+                        onClick={() => setShowToken(!showToken)}
+                        className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+                      >
+                        {showToken ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(showInstallModal.token, 'token')}
+                        className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+                      >
+                        {copied === 'token' ? (
+                          <Check className="w-4 h-4 text-emerald-500" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Manual install */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-blue-800 mb-2">
+                      Manual installation
+                    </h4>
+                    <p className="text-xs text-blue-700">
+                      If the curl command doesn't work, you can manually copy the binary
+                      to <code className="bg-blue-100 px-1 rounded">/usr/local/bin/certdax-agent</code> and
+                      configure <code className="bg-blue-100 px-1 rounded">/etc/certdax/config.yaml</code> with
+                      the API URL and token.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="p-6 border-t border-slate-200 flex justify-end">
               <button
-                onClick={() => {
-                  setShowInstallModal(null);
-                  setShowToken(false);
-                }}
+                onClick={() => { setShowInstallModal(null); setShowToken(false); setModalCaId(''); }}
                 className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium"
               >
                 Close
@@ -701,7 +1058,8 @@ sudo systemctl enable --now certdax-agent`}</pre>
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

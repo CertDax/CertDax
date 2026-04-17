@@ -53,6 +53,7 @@ type CertificateData struct {
 	PostDeployScript string `json:"post_deploy_script"`
 	DeployFormat    string `json:"deploy_format"`
 	PFXData         string `json:"pfx_data"`
+	IsCA            bool   `json:"is_ca"`
 }
 
 // Agent is the main deploy agent.
@@ -190,6 +191,10 @@ func safeName(commonName string) string {
 }
 
 func getOSPrettyName() string {
+	if runtime.GOOS == "windows" {
+		// Read Windows version from registry or use environment
+		return "Windows"
+	}
 	data, err := os.ReadFile("/etc/os-release")
 	if err != nil {
 		return runtime.GOOS
@@ -214,9 +219,16 @@ func writeFile(path, content string, perm os.FileMode) error {
 	return os.WriteFile(path, []byte(content), perm)
 }
 
-// runScript writes a script to a temp file and executes it with sh.
+// runScript writes a script to a temp file and executes it.
+// On Linux/macOS, it runs with sh. On Windows, it runs with powershell.exe.
 func runScript(label string, id int, script string) error {
-	tmpFile, err := os.CreateTemp("", "certdax-*.sh")
+	ext := ".sh"
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		ext = ".ps1"
+	}
+
+	tmpFile, err := os.CreateTemp("", "certdax-*"+ext)
 	if err != nil {
 		return fmt.Errorf("create temp script: %w", err)
 	}
@@ -228,14 +240,18 @@ func runScript(label string, id int, script string) error {
 	}
 	tmpFile.Close()
 
-	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
-		return fmt.Errorf("chmod temp script: %w", err)
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+			return fmt.Errorf("chmod temp script: %w", err)
+		}
+		cmd = exec.Command("sh", tmpFile.Name())
+	} else {
+		cmd = exec.Command("powershell.exe", "-ExecutionPolicy", "Bypass", "-File", tmpFile.Name())
 	}
 
 	log.Printf("[INFO] %s %d: running %s script", label, id, strings.ToLower(label[:1])+label[1:])
 
 	var cmdOutput bytes.Buffer
-	cmd := exec.Command("sh", tmpFile.Name())
 	cmd.Stdout = &cmdOutput
 	cmd.Stderr = &cmdOutput
 
@@ -365,6 +381,19 @@ func (a *Agent) deployCertificate(deploymentID int) {
 
 	log.Printf("[INFO] Deployment %d: certificate files written to %s (format: %s)", deploymentID, deployPath, format)
 
+	// On Windows, also deploy certificate into the appropriate Windows cert store
+	if runtime.GOOS == "windows" {
+		if err := deployToWindowsStore(certData.CertificatePEM, certData.IsCA); err != nil {
+			log.Printf("[WARN] Deployment %d: Windows cert store install failed: %v", deploymentID, err)
+		} else {
+			storeName := "Personal (My)"
+			if certData.IsCA {
+				storeName = "Trusted Root Certification Authorities"
+			}
+			log.Printf("[INFO] Deployment %d: certificate installed in Windows cert store: %s", deploymentID, storeName)
+		}
+	}
+
 	// Execute post-deploy script
 	if certData.PostDeployScript != "" {
 		log.Printf("[INFO] Deployment %d: running post-deploy script", deploymentID)
@@ -382,7 +411,12 @@ func (a *Agent) deployCertificate(deploymentID int) {
 		log.Printf("[INFO] Deployment %d: running reload command: %s", deploymentID, certData.ReloadCommand)
 
 		var cmdOutput bytes.Buffer
-		cmd := exec.Command("sh", "-c", certData.ReloadCommand)
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", certData.ReloadCommand)
+		} else {
+			cmd = exec.Command("sh", "-c", certData.ReloadCommand)
+		}
 		cmd.Stdout = &cmdOutput
 		cmd.Stderr = &cmdOutput
 
@@ -515,7 +549,12 @@ func (a *Agent) undeployCertificate(deploymentID int) {
 		log.Printf("[INFO] Removal %d: running reload command: %s", deploymentID, info.ReloadCommand)
 
 		var cmdOutput bytes.Buffer
-		cmd := exec.Command("sh", "-c", info.ReloadCommand)
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", info.ReloadCommand)
+		} else {
+			cmd = exec.Command("sh", "-c", info.ReloadCommand)
+		}
 		cmd.Stdout = &cmdOutput
 		cmd.Stderr = &cmdOutput
 
@@ -612,6 +651,19 @@ func main() {
 		os.Exit(0)
 	}
 
+	// If no config path given, use OS-appropriate default
+	if configPath == "" {
+		if runtime.GOOS == "windows" {
+			programData := os.Getenv("ProgramData")
+			if programData == "" {
+				programData = `C:\ProgramData`
+			}
+			configPath = filepath.Join(programData, "CertDax", "config.yaml")
+		} else {
+			configPath = "/etc/certdax/config.yaml"
+		}
+	}
+
 	// Priority: flags > env vars > config file
 	if apiURL == "" {
 		apiURL = os.Getenv("CERTDAX_API_URL")
@@ -622,17 +674,18 @@ func main() {
 
 	if configPath != "" {
 		cfg, err := loadConfig(configPath)
-		if err != nil {
+		if err != nil && (apiURL == "" || token == "") {
 			log.Fatalf("[FATAL] %v", err)
-		}
-		if apiURL == "" {
-			apiURL = cfg.APIURL
-		}
-		if token == "" {
-			token = cfg.AgentToken
-		}
-		if pollInterval == 30 && cfg.PollInterval > 0 {
-			pollInterval = cfg.PollInterval
+		} else if err == nil {
+			if apiURL == "" {
+				apiURL = cfg.APIURL
+			}
+			if token == "" {
+				token = cfg.AgentToken
+			}
+			if pollInterval == 30 && cfg.PollInterval > 0 {
+				pollInterval = cfg.PollInterval
+			}
 		}
 	}
 

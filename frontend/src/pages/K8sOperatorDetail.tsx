@@ -42,6 +42,7 @@ export default function K8sOperatorDetailPage() {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
   const [patchShell, setPatchShell] = useState<'bash' | 'pwsh7' | 'pwsh5'>('bash');
+  const [helmShell, setHelmShell] = useState<'bash' | 'powershell'>('bash');
   const [autoScroll, setAutoScroll] = useState(true);
   const [showSetupGuide, setShowSetupGuide] = useState<boolean | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -394,21 +395,49 @@ helm repo update`}
 
             {/* Step 2 */}
             <div className="mt-4">
-              <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">2</span>
-                Install the operator
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">2</span>
+                  Install the operator
+                </h3>
+                <div className="flex rounded-md overflow-hidden border border-slate-300 text-xs">
+                  <button
+                    onClick={() => setHelmShell('bash')}
+                    className={`px-2.5 py-0.5 font-medium transition-colors ${helmShell === 'bash' ? 'bg-indigo-100 text-indigo-800' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    Bash
+                  </button>
+                  <button
+                    onClick={() => setHelmShell('powershell')}
+                    className={`px-2.5 py-0.5 font-medium transition-colors border-l border-slate-300 ${helmShell === 'powershell' ? 'bg-indigo-100 text-indigo-800' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    PowerShell
+                  </button>
+                </div>
+              </div>
               <div className="relative bg-slate-900 rounded-lg p-3">
                 <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
-{`helm install certdax-operator certdax/certdax-operator \\
+{helmShell === 'bash'
+  ? `helm install certdax-operator certdax/certdax-operator \\
   --namespace certdax-system --create-namespace \\
   --set certdax.apiUrl=${window.location.origin}/api \\
   --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} \\
   --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} \\
+  --set clusterName=${operator.cluster_name || 'my-cluster'}`
+  : `helm install certdax-operator certdax/certdax-operator \`
+  --namespace certdax-system --create-namespace \`
+  --set certdax.apiUrl=${window.location.origin}/api \`
+  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} \`
+  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} \`
   --set clusterName=${operator.cluster_name || 'my-cluster'}`}
                 </pre>
                 <button
-                  onClick={() => copyToClipboard(`helm install certdax-operator certdax/certdax-operator \\\n  --namespace certdax-system --create-namespace \\\n  --set certdax.apiUrl=${window.location.origin}/api \\\n  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} \\\n  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} \\\n  --set clusterName=${operator.cluster_name || 'my-cluster'}`, 'step2')}
+                  onClick={() => copyToClipboard(
+                    helmShell === 'bash'
+                      ? `helm install certdax-operator certdax/certdax-operator \\\n  --namespace certdax-system --create-namespace \\\n  --set certdax.apiUrl=${window.location.origin}/api \\\n  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} \\\n  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} \\\n  --set clusterName=${operator.cluster_name || 'my-cluster'}`
+                      : `helm install certdax-operator certdax/certdax-operator \`\n  --namespace certdax-system --create-namespace \`\n  --set certdax.apiUrl=${window.location.origin}/api \`\n  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} \`\n  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} \`\n  --set clusterName=${operator.cluster_name || 'my-cluster'}`,
+                    'step2'
+                  )}
                   className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
                 >
                   {copied === 'step2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}

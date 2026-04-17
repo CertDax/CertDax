@@ -122,6 +122,7 @@ def agent_get_certificate(
             "post_deploy_script": target.post_deploy_script,
             "deploy_format": deploy_format,
             "pfx_data": "",
+            "is_ca": ss_cert.is_ca,
         }
 
         if deploy_format == "pfx" and private_key_pem and ss_cert.certificate_pem:
@@ -173,6 +174,7 @@ def agent_get_certificate(
         "post_deploy_script": target.post_deploy_script,
         "deploy_format": deploy_format,
         "pfx_data": "",
+        "is_ca": False,
     }
 
     if deploy_format == "pfx" and private_key_pem and cert.certificate_pem:

@@ -5,6 +5,7 @@ from pydantic import BaseModel, field_validator
 class DeploymentTargetCreate(BaseModel):
     name: str
     hostname: str
+    os_type: str = "linux"  # linux or windows
     deploy_path: str = "/etc/ssl/certs"
     reload_command: str | None = None
     pre_deploy_script: str | None = None
@@ -28,6 +29,7 @@ class DeploymentTargetResponse(BaseModel):
     reload_command: str | None = None
     pre_deploy_script: str | None = None
     post_deploy_script: str | None = None
+    os_type: str = "linux"
     status: str
     last_seen: datetime | None = None
     agent_os: str | None = None

@@ -62,6 +62,7 @@ def create_agent(
     target = DeploymentTarget(
         name=req.name,
         hostname=req.hostname,
+        os_type=req.os_type,
         deploy_path=req.deploy_path,
         reload_command=req.reload_command,
         pre_deploy_script=req.pre_deploy_script,
@@ -636,3 +637,572 @@ def get_install_script(
         agent_token=token,
     )
     return PlainTextResponse(content=script, media_type="text/plain")
+
+
+# ── Windows agent endpoints ──────────────────────────────────────────────────
+
+def _get_ca_cert_and_key(ca_id: int, db: Session):
+    """Return (cert_pem, key_pem) for a self-signed CA, decrypting the private key."""
+    from app.models.selfsigned import SelfSignedCertificate
+    from app.utils.crypto import decrypt
+
+    ca = db.query(SelfSignedCertificate).filter(
+        SelfSignedCertificate.id == ca_id,
+        SelfSignedCertificate.is_ca == True,
+    ).first()
+    if not ca:
+        raise HTTPException(status_code=404, detail="CA not found or not a CA certificate")
+    if not ca.certificate_pem or not ca.private_key_pem_encrypted:
+        raise HTTPException(status_code=400, detail="CA certificate or private key not available")
+    return ca.certificate_pem, decrypt(ca.private_key_pem_encrypted)
+
+
+def _generate_codesign_cert(ca_cert_pem: str, ca_key_pem: str, agent_name: str) -> tuple[str, str]:
+    """Generate a code-signing certificate signed by the given CA. Returns (cert_pem, key_pem)."""
+    from cryptography import x509 as cx509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509 import oid as x509oid
+    from cryptography.x509.oid import ExtendedKeyUsageOID
+    import datetime
+
+    ca_cert = cx509.load_pem_x509_certificate(ca_cert_pem.encode())
+    ca_key = serialization.load_pem_private_key(ca_key_pem.encode(), password=None)
+
+    # Generate a new RSA key for the code-signing cert
+    priv_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+    subject = cx509.Name([
+        cx509.NameAttribute(cx509.NameOID.COMMON_NAME, f"CertDax Agent - {agent_name}"),
+        cx509.NameAttribute(cx509.NameOID.ORGANIZATION_NAME, "CertDax"),
+    ])
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (
+        cx509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(ca_cert.subject)
+        .public_key(priv_key.public_key())
+        .serial_number(cx509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(now + datetime.timedelta(days=3650))
+        .add_extension(
+            cx509.BasicConstraints(ca=False, path_length=None), critical=True
+        )
+        .add_extension(
+            cx509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            cx509.ExtendedKeyUsage([ExtendedKeyUsageOID.CODE_SIGNING]),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+
+    cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+    key_pem = priv_key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
+    ).decode()
+    return cert_pem, key_pem
+
+
+@router.get("/{agent_id}/install/windows-binary")
+def download_windows_agent_binary(
+    agent_id: int,
+    ca_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Download a Windows .exe agent binary signed with a code-signing certificate
+    issued by the specified self-signed CA.
+    """
+    import os
+    import tempfile
+    import subprocess
+    from fastapi.responses import FileResponse, Response
+
+    target = db.query(DeploymentTarget).filter(
+        DeploymentTarget.id == agent_id,
+        DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    # Locate pre-built Windows binary
+    binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
+    windows_binary = os.path.join(binary_dir, "certdax-agent-windows-amd64.exe")
+    if not os.path.isfile(windows_binary):
+        raise HTTPException(
+            status_code=404,
+            detail="Windows agent binary not found. Make sure the backend was built with Windows support.",
+        )
+
+    # Generate code-signing cert signed by the selected CA
+    ca_cert_pem, ca_key_pem = _get_ca_cert_and_key(ca_id, db)
+    cs_cert_pem, cs_key_pem = _generate_codesign_cert(ca_cert_pem, ca_key_pem, target.name)
+
+    # Write temp files for signing
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cs_cert_file = os.path.join(tmpdir, "codesign.crt")
+        cs_key_file = os.path.join(tmpdir, "codesign.key")
+        ca_cert_file = os.path.join(tmpdir, "ca.crt")
+        signed_exe = os.path.join(tmpdir, "certdax-agent.exe")
+
+        with open(cs_cert_file, "w") as f:
+            f.write(cs_cert_pem)
+        with open(cs_key_file, "w") as f:
+            f.write(cs_key_pem)
+        with open(ca_cert_file, "w") as f:
+            f.write(ca_cert_pem)
+
+        # Try to sign with osslsigncode; fall back to unsigned if not available
+        try:
+            result = subprocess.run(
+                [
+                    "osslsigncode", "sign",
+                    "-certs", cs_cert_file,
+                    "-key", cs_key_file,
+                    "-ac", ca_cert_file,
+                    "-h", "sha256",
+                    "-in", windows_binary,
+                    "-out", signed_exe,
+                ],
+                capture_output=True,
+                timeout=60,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr.decode())
+            exe_to_serve = signed_exe
+        except (FileNotFoundError, RuntimeError):
+            # osslsigncode not available — serve unsigned binary
+            exe_to_serve = windows_binary
+
+        with open(exe_to_serve, "rb") as f:
+            exe_bytes = f.read()
+
+    safe_name = target.name.replace(" ", "_").replace("/", "_")
+    return Response(
+        content=exe_bytes,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="certdax-agent-{safe_name}.exe"'},
+    )
+
+
+@router.get("/{agent_id}/install/ca-cert")
+def download_agent_ca_cert(
+    agent_id: int,
+    ca_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Download the CA certificate that signed the Windows agent binary."""
+    from fastapi.responses import Response
+
+    target = db.query(DeploymentTarget).filter(
+        DeploymentTarget.id == agent_id,
+        DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    ca_cert_pem, _ = _get_ca_cert_and_key(ca_id, db)
+    safe_name = target.name.replace(" ", "_").replace("/", "_")
+    return Response(
+        content=ca_cert_pem.encode(),
+        media_type="application/x-pem-file",
+        headers={"Content-Disposition": f'attachment; filename="certdax-ca-{safe_name}.crt"'},
+    )
+
+
+@router.get("/{agent_id}/install/windows-script", response_class=PlainTextResponse)
+def get_windows_install_script(
+    agent_id: int,
+    ca_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Generate a PowerShell installer script that installs the CertDax Windows agent
+    as a Windows service and configures it with the agent token.
+    """
+    target = db.query(DeploymentTarget).filter(
+        DeploymentTarget.id == agent_id,
+        DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    # Determine base API URL
+    from app.config import settings as _settings
+    if _settings.API_BASE_URL:
+        api_url = _settings.API_BASE_URL.rstrip("/")
+    else:
+        forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+        forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+        if forwarded_host:
+            api_url = f"{forwarded_proto}://{forwarded_host}"
+        else:
+            api_url = str(request.base_url).rstrip("/")
+
+    # Generate a new token
+    token, token_hash = generate_agent_token()
+    target.agent_token_hash = token_hash
+    db.commit()
+
+    auth_header = f'Authorization: Bearer {token}'
+    binary_url = f"{api_url}/api/agents/{agent_id}/install/windows-binary?ca_id={ca_id}"
+    ca_cert_url = f"{api_url}/api/agents/{agent_id}/install/ca-cert?ca_id={ca_id}"
+
+    script = f"""#Requires -RunAsAdministrator
+# CertDax Windows Agent Installer
+# Generated for: {target.name}
+# Run this script in an elevated PowerShell session.
+
+$ErrorActionPreference = "Stop"
+
+$AgentName  = "{target.name}"
+$ApiUrl     = "{api_url}"
+$AgentToken = "{token}"
+$InstallDir = "C:\\ProgramData\\CertDax"
+$BinaryPath = "$InstallDir\\certdax-agent.exe"
+$ConfigPath = "$InstallDir\\config.yaml"
+$ServiceName = "CertDaxAgent"
+
+Write-Host "CertDax Agent Installer" -ForegroundColor Cyan
+Write-Host "=========================" -ForegroundColor Cyan
+Write-Host "Agent: $AgentName"
+Write-Host ""
+
+# Step 1 – Install CA certificate into Trusted Root so the signed agent binary is trusted
+Write-Host "[1/4] Installing CA certificate into Trusted Root Certification Authorities..." -ForegroundColor Yellow
+$caCertPath = "$env:TEMP\\certdax-ca.crt"
+$headers = @{{ Authorization = "Bearer $AgentToken" }}
+Invoke-WebRequest -Uri "{ca_cert_url}" -Headers $headers -OutFile $caCertPath
+Import-Certificate -FilePath $caCertPath -CertStoreLocation Cert:\\LocalMachine\\Root | Out-Null
+Remove-Item $caCertPath -Force
+Write-Host "   CA certificate installed." -ForegroundColor Green
+
+# Step 2 – Download the signed agent binary
+Write-Host "[2/4] Downloading signed agent binary..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+Invoke-WebRequest -Uri "{binary_url}" -Headers $headers -OutFile $BinaryPath
+Write-Host "   Binary downloaded to $BinaryPath" -ForegroundColor Green
+
+# Step 3 – Write configuration file
+Write-Host "[3/4] Writing configuration..." -ForegroundColor Yellow
+@"
+api_url: "$ApiUrl"
+agent_token: "$AgentToken"
+poll_interval: 30
+"@ | Set-Content -Path $ConfigPath -Encoding UTF8
+Write-Host "   Config written to $ConfigPath" -ForegroundColor Green
+
+# Step 4 – Install as Windows service
+Write-Host "[4/4] Installing Windows service..." -ForegroundColor Yellow
+$existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existingService) {{
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    sc.exe delete $ServiceName | Out-Null
+    Start-Sleep -Seconds 2
+}}
+New-Service -Name $ServiceName `
+            -BinaryPathName "`"$BinaryPath`" --config `"$ConfigPath`"" `
+            -DisplayName "CertDax Deploy Agent" `
+            -Description "CertDax certificate deployment agent for {target.name}" `
+            -StartupType Automatic | Out-Null
+Start-Service -Name $ServiceName
+Write-Host "   Service '$ServiceName' installed and started." -ForegroundColor Green
+
+Write-Host ""
+Write-Host "Done! CertDax agent is running as a Windows service." -ForegroundColor Cyan
+Write-Host "Check status: Get-Service -Name $ServiceName"
+Write-Host "View logs:    Get-EventLog -LogName Application -Source $ServiceName -Newest 20"
+"""
+
+    return PlainTextResponse(content=script, media_type="text/plain")
+
+
+# ── NSIS Windows Installer ────────────────────────────────────────────────────
+
+_NSIS_TEMPLATE = r"""; CertDax Agent Windows Installer
+; Agent: {agent_name_display}
+
+!include "MUI2.nsh"
+
+Name "CertDax Agent"
+BrandingText "CertDax Certificate Management"
+OutFile "{out_file}"
+InstallDir "$PROGRAMFILES64\CertDax"
+InstallDirRegKey HKLM "Software\CertDax\Agent" "InstallDir"
+RequestExecutionLevel admin
+Unicode True
+
+VIProductVersion "1.0.0.0"
+VIAddVersionKey "ProductName" "CertDax Agent"
+VIAddVersionKey "CompanyName" "CertDax"
+VIAddVersionKey "FileDescription" "CertDax Certificate Deployment Agent"
+VIAddVersionKey "FileVersion" "1.0.0"
+VIAddVersionKey "LegalCopyright" "CertDax"
+
+!define MUI_ABORTWARNING
+!define MUI_WELCOMEPAGE_TITLE "Welcome to CertDax Agent Setup"
+!define MUI_WELCOMEPAGE_TEXT "This wizard will install the CertDax Agent on your computer.$\r$\n$\r$\nThe agent automatically manages certificate deployments and installs certificates into the correct Windows certificate stores.$\r$\n$\r$\nClick Next to continue."
+!define MUI_FINISHPAGE_TITLE "CertDax Agent Installed"
+!define MUI_FINISHPAGE_TEXT "The CertDax Agent has been successfully installed and started as a Windows service.$\r$\n$\r$\nAgent: {agent_name_display}$\r$\nService: CertDaxAgent$\r$\n$\r$\nThe service is now running and will automatically connect to CertDax to manage certificate deployments."
+
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+
+!insertmacro MUI_LANGUAGE "English"
+
+Section "CertDax Agent" SecMain
+    SectionIn RO
+
+    ; ---- Install agent binary ----
+    SetOutPath "$INSTDIR"
+    File "certdax-agent.exe"
+
+    ; ---- Install CA certificate into Trusted Root Certification Authorities ----
+    SetOutPath "$TEMP"
+    File "ca.crt"
+    DetailPrint "Installing CA certificate into Trusted Root Certification Authorities..."
+    ExecWait 'certutil.exe -addstore -f "Root" "$TEMP\ca.crt"' $0
+    Delete "$TEMP\ca.crt"
+
+    ; ---- Write agent configuration ----
+    CreateDirectory "C:\ProgramData\CertDax"
+    SetOutPath "C:\ProgramData\CertDax"
+    File "config.yaml"
+
+    ; ---- Install Windows service via PowerShell script ----
+    SetOutPath "$TEMP"
+    File "install-service.ps1"
+    DetailPrint "Installing CertDax Agent service..."
+    ExecWait 'powershell.exe -ExecutionPolicy Bypass -File "$TEMP\install-service.ps1" -InstallDir "$INSTDIR"' $0
+    Delete "$TEMP\install-service.ps1"
+
+    ; ---- Write uninstaller ----
+    SetOutPath "$INSTDIR"
+    WriteUninstaller "$INSTDIR\uninstall.exe"
+
+    ; ---- Register in Add/Remove Programs ----
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "DisplayName" "CertDax Agent"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "UninstallString" '"$INSTDIR\uninstall.exe"'
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "QuietUninstallString" '"$INSTDIR\uninstall.exe" /S'
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "InstallLocation" "$INSTDIR"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "Publisher" "CertDax"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "DisplayVersion" "1.0.0"
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "NoModify" 1
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent" "NoRepair" 1
+    WriteRegStr HKLM "Software\CertDax\Agent" "InstallDir" "$INSTDIR"
+SectionEnd
+
+Section "Uninstall"
+    ExecWait 'sc.exe stop CertDaxAgent' $0
+    ExecWait 'sc.exe delete CertDaxAgent' $0
+    Sleep 2000
+    Delete "$INSTDIR\certdax-agent.exe"
+    Delete "$INSTDIR\uninstall.exe"
+    RMDir "$INSTDIR"
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent"
+    DeleteRegKey HKLM "Software\CertDax"
+SectionEnd
+"""
+
+
+@router.get("/{agent_id}/install/windows-installer")
+def download_windows_installer(
+    agent_id: int,
+    ca_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Build and download a Windows NSIS installer for the CertDax agent.
+    The installer embeds the signed binary, CA cert, config, and service script.
+    It presents a wizard UI (Welcome → Directory → Install → Finish) and registers
+    the agent as a Windows service on completion.
+    """
+    import os
+    import re
+    import shutil
+    import tempfile
+    import subprocess
+    from fastapi.responses import Response
+
+    target = db.query(DeploymentTarget).filter(
+        DeploymentTarget.id == agent_id,
+        DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    # Locate pre-built Windows binary
+    binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
+    windows_binary = os.path.join(binary_dir, "certdax-agent-windows-amd64.exe")
+    if not os.path.isfile(windows_binary):
+        raise HTTPException(
+            status_code=404,
+            detail="Windows agent binary not found. Make sure the backend was built with Windows support.",
+        )
+
+    # Code-sign the binary using the chosen CA
+    ca_cert_pem, ca_key_pem = _get_ca_cert_and_key(ca_id, db)
+    cs_cert_pem, cs_key_pem = _generate_codesign_cert(ca_cert_pem, ca_key_pem, target.name)
+
+    # Determine API URL
+    if settings.API_BASE_URL:
+        api_url = settings.API_BASE_URL.rstrip("/")
+    else:
+        forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+        forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+        if forwarded_host:
+            api_url = f"{forwarded_proto}://{forwarded_host}"
+        else:
+            api_url = str(request.base_url).rstrip("/")
+
+    # Generate a fresh agent token (token rotated on each installer download)
+    token, token_hash = generate_agent_token()
+    target.agent_token_hash = token_hash
+    db.commit()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        agent_exe    = os.path.join(tmpdir, "certdax-agent.exe")
+        ca_crt       = os.path.join(tmpdir, "ca.crt")
+        config_yaml  = os.path.join(tmpdir, "config.yaml")
+        svc_ps1      = os.path.join(tmpdir, "install-service.ps1")
+        nsi_script   = os.path.join(tmpdir, "installer.nsi")
+        installer_exe = os.path.join(tmpdir, "certdax-agent-installer.exe")
+
+        # --- Sign the agent binary ---
+        cs_cert_file = os.path.join(tmpdir, "codesign.crt")
+        cs_key_file  = os.path.join(tmpdir, "codesign.key")
+        ca_cert_tmp  = os.path.join(tmpdir, "_ca_sign.crt")
+        with open(cs_cert_file, "w") as f:
+            f.write(cs_cert_pem)
+        with open(cs_key_file, "w") as f:
+            f.write(cs_key_pem)
+        with open(ca_cert_tmp, "w") as f:
+            f.write(ca_cert_pem)
+
+        try:
+            result = subprocess.run(
+                [
+                    "osslsigncode", "sign",
+                    "-certs", cs_cert_file,
+                    "-key", cs_key_file,
+                    "-ac", ca_cert_tmp,
+                    "-h", "sha256",
+                    "-in", windows_binary,
+                    "-out", agent_exe,
+                ],
+                capture_output=True,
+                timeout=60,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr.decode())
+        except (FileNotFoundError, RuntimeError):
+            shutil.copy2(windows_binary, agent_exe)
+
+        # --- Write CA cert (bundled into installer) ---
+        with open(ca_crt, "w") as f:
+            f.write(ca_cert_pem)
+
+        # --- Write config.yaml (bundled into installer) ---
+        with open(config_yaml, "w") as f:
+            f.write(f'api_url: "{api_url}"\n')
+            f.write(f'agent_token: "{token}"\n')
+            f.write("poll_interval: 30\n")
+
+        # --- Write service installer PS1 (bundled into installer) ---
+        # PowerShell variables ($InstallDir etc.) are safe inside Python f-strings
+        safe_desc = target.name.replace("'", "").replace('"', "")[:80]
+        with open(svc_ps1, "w") as f:
+            f.write(f"""\
+param([string]$InstallDir)
+$ConfigPath  = 'C:\\ProgramData\\CertDax\\config.yaml'
+$ServiceName = 'CertDaxAgent'
+$BinaryPath  = "$InstallDir\\certdax-agent.exe"
+
+$existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existing) {{
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    sc.exe delete $ServiceName | Out-Null
+    Start-Sleep -Seconds 2
+}}
+
+$binPathArg = "`"$BinaryPath`" --config `"$ConfigPath`""
+New-Service -Name $ServiceName `
+            -BinaryPathName $binPathArg `
+            -DisplayName 'CertDax Deploy Agent' `
+            -Description 'CertDax certificate deployment agent for {safe_desc}' `
+            -StartupType Automatic
+Start-Service -Name $ServiceName
+Write-Host "Service $ServiceName installed and started." -ForegroundColor Green
+""")
+
+        # --- Write NSIS script ---
+        safe_display = re.sub(r"[^\w\s\-]", "", target.name)[:64].strip() or "CertDax Agent"
+        nsis_content = _NSIS_TEMPLATE.format(
+            out_file=installer_exe,
+            agent_name_display=safe_display,
+        )
+        with open(nsi_script, "w") as f:
+            f.write(nsis_content)
+
+        # --- Run makensis ---
+        try:
+            result = subprocess.run(
+                ["makensis", nsi_script],
+                capture_output=True,
+                cwd=tmpdir,
+                timeout=180,
+            )
+            if result.returncode != 0:
+                err = (result.stderr.decode() or result.stdout.decode())[:600]
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"NSIS installer build failed: {err}",
+                )
+        except FileNotFoundError:
+            raise HTTPException(
+                status_code=503,
+                detail="NSIS (makensis) is not installed on the server. Rebuild the Docker image.",
+            )
+
+        with open(installer_exe, "rb") as f:
+            installer_bytes = f.read()
+
+    safe_filename = re.sub(r"[^\w\-]", "_", target.name)
+    return Response(
+        content=installer_bytes,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="certdax-agent-{safe_filename}-setup.exe"'
+            )
+        },
+    )
+

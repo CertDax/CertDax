@@ -68,6 +68,7 @@ export interface DeploymentTarget {
   id: number;
   name: string;
   hostname: string;
+  os_type: string;
   deploy_path: string;
   reload_command: string | null;
   pre_deploy_script: string | null;
