@@ -622,22 +622,9 @@ Start-Service CertDaxAgent`}</pre>
                     The agent automatically retrieves the certificates and deploys them to the configured path.
                   </p>
                   {guideOs === 'linux' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
-                        <Server className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-emerald-800">Nginx / Apache</p>
-                        <p className="text-xs text-emerald-600">/etc/ssl/certs</p>
-                      </div>
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                        <Server className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-blue-800">Postfix / Dovecot</p>
-                        <p className="text-xs text-blue-600">/etc/ssl/mail</p>
-                      </div>
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
-                        <Server className="w-6 h-6 text-purple-600 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-purple-800">Custom application</p>
-                        <p className="text-xs text-purple-600">/opt/app/certs</p>
-                      </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-3">
+                      <Server className="w-5 h-5 text-slate-500 flex-shrink-0" />
+                      <p className="text-xs text-slate-600">Certificates are deployed to any path you configure — set it when registering the agent.</p>
                     </div>
                   ) : (
                     <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-3">
