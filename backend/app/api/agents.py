@@ -961,9 +961,15 @@ Import-Certificate -FilePath $caCertPath -CertStoreLocation Cert:\\LocalMachine\
 Remove-Item $caCertPath -Force
 Write-Host "   CA certificate installed." -ForegroundColor Green
 
-# Step 2 – Download the signed agent binary
+# Step 2 – Stop existing service and download the signed agent binary
 Write-Host "[2/4] Downloading signed agent binary..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+$existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existingService) {{
+    Write-Host "   Existing service found — stopping before upgrade..." -ForegroundColor Yellow
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
+}}
 Invoke-WebRequest -Uri "{binary_url}" -Headers $headers -OutFile $BinaryPath
 Write-Host "   Binary downloaded to $BinaryPath" -ForegroundColor Green
 
@@ -976,13 +982,15 @@ poll_interval: 30
 "@ | Set-Content -Path $ConfigPath -Encoding UTF8
 Write-Host "   Config written to $ConfigPath" -ForegroundColor Green
 
-# Step 4 – Install as Windows service
-Write-Host "[4/4] Installing Windows service..." -ForegroundColor Yellow
+# Step 4 – Install (or re-register) as Windows service
 $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existingService) {{
+    Write-Host "[4/4] Re-registering Windows service (upgrade)..." -ForegroundColor Yellow
     Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
     sc.exe delete $ServiceName | Out-Null
     Start-Sleep -Seconds 2
+}} else {{
+    Write-Host "[4/4] Installing Windows service..." -ForegroundColor Yellow
 }}
 New-Service -Name $ServiceName `
             -BinaryPathName "`"$BinaryPath`" --config `"$ConfigPath`"" `
