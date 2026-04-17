@@ -58,7 +58,12 @@ func isWindowsService() (bool, error) {
 
 // runAsWindowsService blocks until the SCM tells us to stop.
 func runAsWindowsService(agent *Agent) error {
-	// Also log to the Windows Event Log so errors show in Event Viewer.
+	// Ensure the event log source is registered with a proper message file so
+	// Windows Event Viewer can display messages without "onjuiste functie" errors.
+	// InstallAsEventCreate is idempotent: if the source is already registered it
+	// returns an error we safely ignore.
+	_ = eventlog.InstallAsEventCreate(_serviceName, eventlog.Error|eventlog.Warning|eventlog.Info)
+
 	el, err := eventlog.Open(_serviceName)
 	if err == nil {
 		defer el.Close()

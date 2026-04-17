@@ -108,6 +108,7 @@ def _migrate_db():
             ("pre_deploy_script", "TEXT"),
             ("post_deploy_script", "TEXT"),
             ("os_type", "VARCHAR(10) DEFAULT 'linux'"),
+            ("recent_logs", "TEXT"),
         ]
         with engine.begin() as conn:
             for col_name, col_type in migrations:
