@@ -177,73 +177,77 @@ export default function SelfSignedDetail() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-4 mb-8">
-        <Link
-          to="/self-signed"
-          className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-slate-600" />
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            {cert.is_ca ? (
-              <Building2 className="w-6 h-6 text-amber-600" />
-            ) : (
-              <FileLock2 className="w-6 h-6 text-amber-500" />
-            )}
-            {cert.common_name}
-            <span className="text-sm text-slate-400 font-mono font-normal">ID: {cert.id}</span>
-          </h1>
-          <p className="text-slate-500 mt-1">
-            Self-Signed {cert.is_ca ? 'CA ' : ''}Certificate
-            {cert.organization && ` — ${cert.organization}`}
-          </p>
-          {cert.created_by_username && (
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-              <User className="w-3 h-3" />
-              Created by {cert.created_by_username}
-            </p>
-          )}
-          {cert.modified_by_username && (
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-              <User className="w-3 h-3" />
-              Modified by {cert.modified_by_username}
-              {cert.updated_at && (
-                <span className="ml-1">
-                  op {new Date(cert.updated_at).toLocaleString()}
-                </span>
-              )}
-            </p>
-          )}
-        </div>
-        {cert.is_ca && (
-          <button
-            onClick={() => navigate(`/self-signed?ca=${cert.id}`)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+      <div className="mb-8">
+        <div className="flex items-start gap-4">
+          <Link
+            to="/self-signed"
+            className="p-2 rounded-lg hover:bg-slate-200 transition-colors mt-1 flex-shrink-0"
           >
-            <FileLock2 className="w-4 h-4" />
-            Sign certificate
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3 flex-wrap">
+              {cert.is_ca ? (
+                <Building2 className="w-6 h-6 text-amber-600 flex-shrink-0" />
+              ) : (
+                <FileLock2 className="w-6 h-6 text-amber-500 flex-shrink-0" />
+              )}
+              <span className="break-all">{cert.common_name}</span>
+              <span className="text-sm text-slate-400 font-mono font-normal">ID: {cert.id}</span>
+            </h1>
+            <p className="text-slate-500 mt-1">
+              Self-Signed {cert.is_ca ? 'CA ' : ''}Certificate
+              {cert.organization && ` — ${cert.organization}`}
+            </p>
+            {cert.created_by_username && (
+              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                Created by {cert.created_by_username}
+              </p>
+            )}
+            {cert.modified_by_username && (
+              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                Modified by {cert.modified_by_username}
+                {cert.updated_at && (
+                  <span className="ml-1">
+                    op {new Date(cert.updated_at).toLocaleString()}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3 mt-4 ml-11">
+          {cert.is_ca && (
+            <button
+              onClick={() => navigate(`/self-signed?ca=${cert.id}`)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+            >
+              <FileLock2 className="w-4 h-4" />
+              Sign certificate
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setRenewDays(cert.validity_days);
+              const currentEku: string[] = parsedDetails?.certificate?.extensions?.extended_key_usage ?? [];
+              setRenewCodeSigning(currentEku.includes('codeSigning'));
+              setShowRenewModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Renew
           </button>
-        )}
-        <button
-          onClick={() => {
-            setRenewDays(cert.validity_days);
-            const currentEku: string[] = parsedDetails?.certificate?.extensions?.extended_key_usage ?? [];
-            setRenewCodeSigning(currentEku.includes('codeSigning'));
-            setShowRenewModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Renew
-        </button>
-        <button
-          onClick={() => handleDelete()}
-          className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete
-        </button>
+          <button
+            onClick={() => handleDelete()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
       </div>
 
       {deleteError && (

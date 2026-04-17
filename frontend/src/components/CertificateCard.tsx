@@ -31,13 +31,13 @@ export default function CertificateCard({ cert }: { cert: Certificate }) {
       to={`/certificates/${cert.id}`}
       className="block bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow"
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          {getIcon()}
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-slate-900">{cert.common_name}</h3>
-              <span className="text-xs text-slate-400 font-mono">#{cert.id}</span>
+      <div className="flex items-start gap-3">
+        <div className="flex items-start gap-4 flex-1 min-w-0">
+          <div className="flex-shrink-0">{getIcon()}</div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-slate-900 break-all">{cert.common_name}</h3>
+              <span className="text-xs text-slate-400 font-mono flex-shrink-0">#{cert.id}</span>
             </div>
             {cert.san_domains && (
               <p className="text-xs text-slate-400 mt-0.5">
@@ -67,7 +67,7 @@ export default function CertificateCard({ cert }: { cert: Certificate }) {
             )}
           </div>
         </div>
-        <StatusBadge status={cert.status} />
+        <div className="flex-shrink-0"><StatusBadge status={cert.status} /></div>
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm">
