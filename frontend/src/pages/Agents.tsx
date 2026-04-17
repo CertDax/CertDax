@@ -19,6 +19,8 @@ import {
   Settings,
   Play,
   ShieldCheck,
+  Search,
+  Filter,
 } from 'lucide-react';
 import api from '../services/api';
 import type { DeploymentTarget } from '../types';
@@ -50,6 +52,11 @@ export default function Agents() {
   const [windowsCaId, setWindowsCaId] = useState<number | ''>('');
   const [availableCAs, setAvailableCAs] = useState<SelfSignedCA[]>([]);
   const [loadingCAs, setLoadingCAs] = useState(false);
+
+  // Filter state
+  const [filterName, setFilterName] = useState('');
+  const [filterOs, setFilterOs] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
 
   // Install modal Windows state
   const [modalCaId, setModalCaId] = useState<number | ''>('');
@@ -692,7 +699,59 @@ sudo systemctl enable --now certdax-agent`}</pre>
       )}
 
       {/* Agent list */}
+      {(() => {
+        const q = filterName.toLowerCase();
+        const filtered = agents.filter((a) => {
+          if (q && !a.name.toLowerCase().includes(q) && !a.hostname.toLowerCase().includes(q)) return false;
+          if (filterOs && a.os_type !== filterOs) return false;
+          if (filterStatus && a.status !== filterStatus) return false;
+          return true;
+        });
+        return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
+        {/* Filter bar */}
+        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap gap-2 items-center bg-slate-50">
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+              placeholder="Search name or hostname..."
+              className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+            />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+            {[{ value: '', label: 'All OS' }, { value: 'linux', label: 'Linux' }, { value: 'windows', label: 'Windows' }].map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilterOs(f.value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  filterOs === f.value
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+            <span className="text-slate-200">|</span>
+            {[{ value: '', label: 'All status' }, { value: 'online', label: 'Online' }, { value: 'offline', label: 'Offline' }].map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilterStatus(f.value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  filterStatus === f.value
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="overflow-x-auto">
         <table className="w-full min-w-[600px]">
           <thead className="bg-slate-50">
@@ -731,8 +790,18 @@ sudo systemctl enable --now certdax-agent`}</pre>
                   </p>
                 </td>
               </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <Search className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                  <p className="font-medium">No agents match your filters</p>
+                  <button onClick={() => { setFilterName(''); setFilterOs(''); setFilterStatus(''); }} className="text-sm text-emerald-600 hover:underline mt-1">
+                    Clear filters
+                  </button>
+                </td>
+              </tr>
             ) : (
-              agents.map((agent) => (
+              filtered.map((agent) => (
                 <tr
                   key={agent.id}
                   className="hover:bg-slate-50 cursor-pointer"
@@ -800,6 +869,8 @@ sudo systemctl enable --now certdax-agent`}</pre>
         </table>
         </div>
       </div>
+        );
+      })()}
 
       {/* Install modal */}
       {showInstallModal && (() => {

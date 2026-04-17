@@ -326,6 +326,24 @@ func (a *Agent) deployCertificate(deploymentID int) {
 		format = "crt"
 	}
 
+	// Detect renewal vs. new deployment by checking if the primary cert file already exists.
+	var primaryFile string
+	switch format {
+	case "pem":
+		primaryFile = filepath.Join(deployPath, name+".pem")
+	case "pfx":
+		primaryFile = filepath.Join(deployPath, name+".pfx")
+	default:
+		primaryFile = filepath.Join(deployPath, name+".crt")
+	}
+	_, statErr := os.Stat(primaryFile)
+	isRenewal := statErr == nil
+	action := "Deploying new certificate"
+	if isRenewal {
+		action = "Renewing certificate"
+	}
+	log.Printf("[INFO] Deployment %d: %s '%s' → %s (format: %s)", deploymentID, action, certData.CommonName, deployPath, format)
+
 	// Create deploy directory
 	if err := os.MkdirAll(deployPath, 0755); err != nil {
 		errMsg := fmt.Sprintf("create deploy dir: %v", err)
@@ -423,8 +441,6 @@ func (a *Agent) deployCertificate(deploymentID int) {
 		return
 	}
 
-	log.Printf("[INFO] Deployment %d: certificate files written to %s (format: %s)", deploymentID, deployPath, format)
-
 	// On Windows, also deploy certificate into the appropriate Windows cert store
 	if runtime.GOOS == "windows" {
 		if err := deployToWindowsStore(certData.CertificatePEM, certData.IsCA); err != nil {
@@ -479,7 +495,11 @@ func (a *Agent) deployCertificate(deploymentID int) {
 	}
 
 	a.reportStatus(deploymentID, "deployed", "")
-	log.Printf("[INFO] Deployment %d: completed for %s", deploymentID, certData.CommonName)
+	if isRenewal {
+		log.Printf("[INFO] Deployment %d: certificate successfully RENEWED: %s", deploymentID, certData.CommonName)
+	} else {
+		log.Printf("[INFO] Deployment %d: NEW certificate successfully deployed: %s", deploymentID, certData.CommonName)
+	}
 }
 
 // RemovalData is the response from the removal info endpoint.
@@ -613,7 +633,7 @@ func (a *Agent) undeployCertificate(deploymentID int) {
 	}
 
 	a.reportStatus(deploymentID, "removed", "")
-	log.Printf("[INFO] Removal %d: completed for %s", deploymentID, info.CommonName)
+	log.Printf("[INFO] Removal %d: certificate successfully REMOVED: %s", deploymentID, info.CommonName)
 }
 
 // Run starts the agent with OS signal handling (interactive / console mode).
@@ -664,10 +684,10 @@ func (a *Agent) processDeployments() {
 			name = "unknown"
 		}
 		if dep.Status == "pending_removal" {
-			log.Printf("[INFO] Processing removal %d for %s", dep.ID, name)
+			log.Printf("[INFO] Removal %d: removing certificate '%s'", dep.ID, name)
 			a.undeployCertificate(dep.ID)
 		} else {
-			log.Printf("[INFO] Processing deployment %d for %s", dep.ID, name)
+			log.Printf("[INFO] Deployment %d: processing '%s'", dep.ID, name)
 			a.deployCertificate(dep.ID)
 		}
 	}
