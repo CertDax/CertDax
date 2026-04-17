@@ -51,11 +51,9 @@ export default function NotificationBell() {
 
   const handleAllowNotifications = () => {
     if ('Notification' in window) {
-      window.Notification.requestPermission().then((permission) => {
+      window.Notification.requestPermission().then(() => {
         setShowPermissionPrompt(false);
-        if (permission === 'granted') {
-          localStorage.setItem('certdax-notif-prompt-dismissed', 'true');
-        }
+        localStorage.setItem('certdax-notif-prompt-dismissed', 'true');
       });
     }
   };
