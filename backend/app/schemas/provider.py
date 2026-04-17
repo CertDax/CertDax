@@ -19,6 +19,7 @@ class CertificateAuthorityResponse(BaseModel):
     contact_email: str | None = None
     has_account: bool = False
     has_eab: bool = False
+    is_global: bool = False
     is_active: bool
     created_at: datetime
 
