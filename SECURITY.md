@@ -1,3 +1,5 @@
+[![CodeQL](https://github.com/CertDax/CertDax/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main&event=push)](https://github.com/CertDax/CertDax/actions/workflows/github-code-scanning/codeql)
+
 # Security Policy
 
 If you discover a security vulnerability or incident, please notify us as soon as possible. We appreciate responsible disclosure and your help to keep CertDax safe for everyone.
