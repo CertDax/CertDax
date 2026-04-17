@@ -76,7 +76,16 @@ export default function RequestCertificate() {
 
   // Detect if selected CA is Let's Encrypt (does not support subject fields or custom OIDs)
   const selectedCa = cas.find((ca) => ca.id === caId);
-  const isLetsEncrypt = selectedCa ? selectedCa.directory_url.includes('letsencrypt.org') : false;
+  const isLetsEncrypt = selectedCa
+    ? (() => {
+        try {
+          const host = new URL(selectedCa.directory_url).hostname.toLowerCase();
+          return host === 'letsencrypt.org' || host.endsWith('.letsencrypt.org');
+        } catch {
+          return false;
+        }
+      })()
+    : false;
 
   const buildPayload = () => {
     const validDomains = domains.filter((d) => d.trim());
