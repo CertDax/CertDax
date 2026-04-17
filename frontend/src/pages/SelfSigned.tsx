@@ -57,6 +57,7 @@ export default function SelfSigned() {
     ca_id: caParam || '',
     auto_renew: false,
     renewal_threshold_days: '',
+    ca_code_signing: false,
   });
 
   const fetchCerts = () => {
@@ -108,6 +109,9 @@ export default function SelfSigned() {
       if (form.locality.trim()) payload.locality = form.locality.trim();
 
       const validOids = customOids.filter((o) => o.oid.trim() && o.value.trim());
+      if (form.is_ca && form.ca_code_signing) {
+        validOids.unshift({ oid: '1.3.6.1.5.5.7.3.3', value: 'codeSigning' });
+      }
       if (validOids.length > 0) payload.custom_oids = validOids;
 
       const res = await api.post('/self-signed', payload);
@@ -157,6 +161,7 @@ export default function SelfSigned() {
         ca_id: '',
         auto_renew: false,
         renewal_threshold_days: '',
+        ca_code_signing: false,
       });
       navigate(agentGroupParam ? `/agent-groups/${agentGroupParam}` : agentParam ? `/agents/${agentParam}` : `/self-signed/${res.data.id}`);
     } catch (err: any) {
@@ -429,7 +434,7 @@ export default function SelfSigned() {
                 <input
                   type="checkbox"
                   checked={form.is_ca}
-                  onChange={(e) => setForm({ ...form, is_ca: e.target.checked, ca_id: e.target.checked ? '' : form.ca_id })}
+                  onChange={(e) => setForm({ ...form, is_ca: e.target.checked, ca_id: e.target.checked ? '' : form.ca_id, ca_code_signing: false })}
                   className="sr-only peer"
                 />
                 <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
@@ -437,6 +442,23 @@ export default function SelfSigned() {
               <span className="text-sm font-medium text-slate-700">CA certificate</span>
               <span className="text-xs text-slate-400">(can sign other certificates)</span>
             </div>
+
+            {/* codeSigning option — only relevant for CA certs (e.g. Windows Agent chain) */}
+            {form.is_ca && (
+              <div className="ml-12 flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.ca_code_signing}
+                    onChange={(e) => setForm({ ...form, ca_code_signing: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+                <span className="text-sm font-medium text-slate-700">Code Signing <span className="font-mono text-xs text-slate-500">(1.3.6.1.5.5.7.3.3)</span></span>
+                <span className="text-xs text-slate-400">required for Windows Agent certificate chain</span>
+              </div>
+            )}
 
             {/* Auto-Renew */}
             <div className="space-y-3">

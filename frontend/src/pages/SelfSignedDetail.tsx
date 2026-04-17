@@ -393,7 +393,6 @@ export default function SelfSignedDetail() {
 
         const effectiveEku: EkuEntry[] = cert.is_ca
           ? [
-              { oid: '1.3.6.1.5.5.7.3.3', label: 'codeSigning', custom: true },
               { oid: '1.3.6.1.5.5.7.3.1', label: 'serverAuth' },
               { oid: '1.3.6.1.5.5.7.3.2', label: 'clientAuth' },
             ]

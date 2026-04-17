@@ -147,13 +147,10 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
         )
 
     # EKU for CA certificates.
-    # Windows chain validation for code signing requires the CA to explicitly include
-    # CODE_SIGNING in its EKU (or have no EKU at all, but that is unreliable on Windows).
-    # We always include CODE_SIGNING + SERVER_AUTH + CLIENT_AUTH so the CA can sign
-    # certificates for all common purposes without breaking existing TLS chains.
+    # CODE_SIGNING is only included when the user explicitly opts in (via custom_oids),
+    # e.g. when this CA is used to sign certificates for the Windows Agent.
     if req.is_ca:
         ca_eku: list[x509.ObjectIdentifier] = [
-            ExtendedKeyUsageOID.CODE_SIGNING,
             ExtendedKeyUsageOID.SERVER_AUTH,
             ExtendedKeyUsageOID.CLIENT_AUTH,
         ]
@@ -315,11 +312,9 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
             x509.ExtendedKeyUsage(eku_list), critical=False,
         )
 
-    # EKU for CA certificates — same logic as create: always include CODE_SIGNING,
-    # SERVER_AUTH, CLIENT_AUTH so Windows code-signing chain validation succeeds.
+    # EKU for CA certificates — CODE_SIGNING only when explicitly requested via custom_oids.
     if req.is_ca:
         ca_eku_renew: list[x509.ObjectIdentifier] = [
-            ExtendedKeyUsageOID.CODE_SIGNING,
             ExtendedKeyUsageOID.SERVER_AUTH,
             ExtendedKeyUsageOID.CLIENT_AUTH,
         ]
