@@ -662,7 +662,6 @@ def _generate_codesign_cert(ca_cert_pem: str, ca_key_pem: str, agent_name: str) 
     from cryptography import x509 as cx509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.x509 import oid as x509oid
     from cryptography.x509.oid import ExtendedKeyUsageOID
     import datetime
 
@@ -707,16 +706,67 @@ def _generate_codesign_cert(ca_cert_pem: str, ca_key_pem: str, agent_name: str) 
             cx509.ExtendedKeyUsage([ExtendedKeyUsageOID.CODE_SIGNING]),
             critical=False,
         )
+        # SubjectKeyIdentifier allows Windows to identify this cert in the chain
+        .add_extension(
+            cx509.SubjectKeyIdentifier.from_public_key(priv_key.public_key()),
+            critical=False,
+        )
+        # AuthorityKeyIdentifier links this cert back to the CA — required for chain building
+        .add_extension(
+            cx509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),
+            critical=False,
+        )
         .sign(ca_key, hashes.SHA256())
     )
 
     cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
+    # PKCS#8 format ("BEGIN PRIVATE KEY") is more universally supported by osslsigncode
     key_pem = priv_key.private_bytes(
         serialization.Encoding.PEM,
-        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.PrivateFormat.PKCS8,
         serialization.NoEncryption(),
     ).decode()
     return cert_pem, key_pem
+
+
+def _osslsign(cs_cert_pem: str, ca_cert_pem: str, cs_key_pem: str,
+              in_path: str, out_path: str, tmpdir: str, description: str = "CertDax Agent") -> None:
+    """
+    Sign a Windows PE binary using osslsigncode.
+
+    The full certificate chain (leaf + CA) is written into a single PEM file passed
+    via -certs. This is more reliable than -certs + -ac with some osslsigncode builds.
+    Raises RuntimeError with the actual error output on failure.
+    """
+    import os
+    import subprocess
+
+    chain_file = os.path.join(tmpdir, "_sign_chain.pem")
+    key_file   = os.path.join(tmpdir, "_sign_key.pem")
+
+    # Chain: leaf cert first, then CA cert — this is the Authenticode-expected order
+    with open(chain_file, "w") as f:
+        f.write(cs_cert_pem)
+        f.write(ca_cert_pem)
+    with open(key_file, "w") as f:
+        f.write(cs_key_pem)
+
+    result = subprocess.run(
+        [
+            "osslsigncode", "sign",
+            "-certs", chain_file,
+            "-key",   key_file,
+            "-h",     "sha256",
+            "-n",     description,
+            "-in",    in_path,
+            "-out",   out_path,
+        ],
+        capture_output=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        err = (result.stderr.decode() or result.stdout.decode()).strip()[:800]
+        raise RuntimeError(f"osslsigncode failed (exit {result.returncode}): {err}")
 
 
 @router.get("/{agent_id}/install/windows-binary")
@@ -763,36 +813,14 @@ def download_windows_agent_binary(
         ca_cert_file = os.path.join(tmpdir, "ca.crt")
         signed_exe = os.path.join(tmpdir, "certdax-agent.exe")
 
-        with open(cs_cert_file, "w") as f:
-            f.write(cs_cert_pem)
-        with open(cs_key_file, "w") as f:
-            f.write(cs_key_pem)
-        with open(ca_cert_file, "w") as f:
-            f.write(ca_cert_pem)
-
-        # Try to sign with osslsigncode; fall back to unsigned if not available
         try:
-            result = subprocess.run(
-                [
-                    "osslsigncode", "sign",
-                    "-certs", cs_cert_file,
-                    "-key", cs_key_file,
-                    "-ac", ca_cert_file,
-                    "-h", "sha256",
-                    "-in", windows_binary,
-                    "-out", signed_exe,
-                ],
-                capture_output=True,
-                timeout=60,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(result.stderr.decode())
-            exe_to_serve = signed_exe
-        except (FileNotFoundError, RuntimeError):
-            # osslsigncode not available — serve unsigned binary
-            exe_to_serve = windows_binary
+            _osslsign(cs_cert_pem, ca_cert_pem, cs_key_pem,
+                      windows_binary, signed_exe, tmpdir,
+                      description=f"CertDax Agent - {target.name}")
+        except (FileNotFoundError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-        with open(exe_to_serve, "rb") as f:
+        with open(signed_exe, "rb") as f:
             exe_bytes = f.read()
 
     safe_name = target.name.replace(" ", "_").replace("/", "_")
@@ -1047,7 +1075,6 @@ def download_windows_installer(
     """
     import os
     import re
-    import shutil
     import tempfile
     import subprocess
     from fastapi.responses import Response
@@ -1097,34 +1124,12 @@ def download_windows_installer(
         installer_exe = os.path.join(tmpdir, "certdax-agent-installer.exe")
 
         # --- Sign the agent binary ---
-        cs_cert_file = os.path.join(tmpdir, "codesign.crt")
-        cs_key_file  = os.path.join(tmpdir, "codesign.key")
-        ca_cert_tmp  = os.path.join(tmpdir, "_ca_sign.crt")
-        with open(cs_cert_file, "w") as f:
-            f.write(cs_cert_pem)
-        with open(cs_key_file, "w") as f:
-            f.write(cs_key_pem)
-        with open(ca_cert_tmp, "w") as f:
-            f.write(ca_cert_pem)
-
         try:
-            result = subprocess.run(
-                [
-                    "osslsigncode", "sign",
-                    "-certs", cs_cert_file,
-                    "-key", cs_key_file,
-                    "-ac", ca_cert_tmp,
-                    "-h", "sha256",
-                    "-in", windows_binary,
-                    "-out", agent_exe,
-                ],
-                capture_output=True,
-                timeout=60,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(result.stderr.decode())
-        except (FileNotFoundError, RuntimeError):
-            shutil.copy2(windows_binary, agent_exe)
+            _osslsign(cs_cert_pem, ca_cert_pem, cs_key_pem,
+                      windows_binary, agent_exe, tmpdir,
+                      description=f"CertDax Agent - {target.name}")
+        except (FileNotFoundError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         # --- Write CA cert (bundled into installer) ---
         with open(ca_crt, "w") as f:
@@ -1192,7 +1197,16 @@ Write-Host "Service $ServiceName installed and started." -ForegroundColor Green
                 detail="NSIS (makensis) is not installed on the server. Rebuild the Docker image.",
             )
 
-        with open(installer_exe, "rb") as f:
+        # --- Sign the NSIS installer itself so Windows shows the publisher name ---
+        signed_installer = os.path.join(tmpdir, "certdax-agent-installer-signed.exe")
+        try:
+            _osslsign(cs_cert_pem, ca_cert_pem, cs_key_pem,
+                      installer_exe, signed_installer, tmpdir,
+                      description=f"CertDax Agent - {target.name} Setup")
+        except (FileNotFoundError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        with open(signed_installer, "rb") as f:
             installer_bytes = f.read()
 
     safe_filename = re.sub(r"[^\w\-]", "_", target.name)
