@@ -779,7 +779,8 @@ def download_windows_agent_binary(
     ca_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    token: Optional[str] = Query(default=None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
 ):
     """
     Download a Windows .exe agent binary signed with a code-signing certificate
@@ -790,10 +791,21 @@ def download_windows_agent_binary(
     import subprocess
     from fastapi.responses import FileResponse, Response
 
-    target = db.query(DeploymentTarget).filter(
-        DeploymentTarget.id == agent_id,
-        DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
-    ).first()
+    raw = token or (credentials.credentials if credentials else None)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = resolve_user_from_raw_token(raw, db)
+    if user:
+        target = db.query(DeploymentTarget).filter(
+            DeploymentTarget.id == agent_id,
+            DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
+        ).first()
+    else:
+        token_hash = hash_token(raw)
+        target = db.query(DeploymentTarget).filter(
+            DeploymentTarget.id == agent_id,
+            DeploymentTarget.agent_token_hash == token_hash,
+        ).first()
     if not target:
         raise HTTPException(status_code=404, detail="Agent not found")
 
@@ -840,15 +852,27 @@ def download_agent_ca_cert(
     agent_id: int,
     ca_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    token: Optional[str] = Query(default=None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
 ):
     """Download the CA certificate that signed the Windows agent binary."""
     from fastapi.responses import Response
 
-    target = db.query(DeploymentTarget).filter(
-        DeploymentTarget.id == agent_id,
-        DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
-    ).first()
+    raw = token or (credentials.credentials if credentials else None)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = resolve_user_from_raw_token(raw, db)
+    if user:
+        target = db.query(DeploymentTarget).filter(
+            DeploymentTarget.id == agent_id,
+            DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
+        ).first()
+    else:
+        token_hash = hash_token(raw)
+        target = db.query(DeploymentTarget).filter(
+            DeploymentTarget.id == agent_id,
+            DeploymentTarget.agent_token_hash == token_hash,
+        ).first()
     if not target:
         raise HTTPException(status_code=404, detail="Agent not found")
 
