@@ -140,18 +140,26 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
             x509.ExtendedKeyUsage(eku_list), critical=False,
         )
 
-    # Custom EKU OIDs for CA certificates (no default EKU added above)
-    if req.is_ca and req.custom_oids:
-        eku_oids = [
-            e for e in req.custom_oids
-            if e.oid.startswith("1.3.6.1.5.5.7.3.")
-            or e.oid.startswith("1.3.6.1.4.1.")
+    # EKU for CA certificates.
+    # Windows chain validation for code signing requires the CA to explicitly include
+    # CODE_SIGNING in its EKU (or have no EKU at all, but that is unreliable on Windows).
+    # We always include CODE_SIGNING + SERVER_AUTH + CLIENT_AUTH so the CA can sign
+    # certificates for all common purposes without breaking existing TLS chains.
+    if req.is_ca:
+        ca_eku: list[x509.ObjectIdentifier] = [
+            ExtendedKeyUsageOID.CODE_SIGNING,
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH,
         ]
-        if eku_oids:
-            eku_list = [x509.ObjectIdentifier(e.oid) for e in eku_oids]
-            builder = builder.add_extension(
-                x509.ExtendedKeyUsage(eku_list), critical=False,
-            )
+        if req.custom_oids:
+            for e in req.custom_oids:
+                if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in ca_eku:
+                        ca_eku.append(oid)
+        builder = builder.add_extension(
+            x509.ExtendedKeyUsage(ca_eku), critical=False,
+        )
 
     # Subject Key Identifier
     builder = builder.add_extension(
@@ -295,18 +303,23 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
             x509.ExtendedKeyUsage(eku_list), critical=False,
         )
 
-    # Custom EKU OIDs for CA certificates (no default EKU added above)
-    if req.is_ca and req.custom_oids:
-        eku_oids = [
-            e for e in req.custom_oids
-            if e.oid.startswith("1.3.6.1.5.5.7.3.")
-            or e.oid.startswith("1.3.6.1.4.1.")
+    # EKU for CA certificates — same logic as create: always include CODE_SIGNING,
+    # SERVER_AUTH, CLIENT_AUTH so Windows code-signing chain validation succeeds.
+    if req.is_ca:
+        ca_eku_renew: list[x509.ObjectIdentifier] = [
+            ExtendedKeyUsageOID.CODE_SIGNING,
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH,
         ]
-        if eku_oids:
-            eku_list = [x509.ObjectIdentifier(e.oid) for e in eku_oids]
-            builder = builder.add_extension(
-                x509.ExtendedKeyUsage(eku_list), critical=False,
-            )
+        if req.custom_oids:
+            for e in req.custom_oids:
+                if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in ca_eku_renew:
+                        ca_eku_renew.append(oid)
+        builder = builder.add_extension(
+            x509.ExtendedKeyUsage(ca_eku_renew), critical=False,
+        )
 
     # Subject Key Identifier
     builder = builder.add_extension(

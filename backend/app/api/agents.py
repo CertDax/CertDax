@@ -706,6 +706,12 @@ def _generate_codesign_cert(ca_cert_pem: str, ca_key_pem: str, agent_name: str) 
             cx509.ExtendedKeyUsage([ExtendedKeyUsageOID.CODE_SIGNING]),
             critical=False,
         )
+        # SubjectAlternativeName is required by modern Windows Authenticode validation.
+        # DirectoryName matching the subject is the correct form for code-signing certs.
+        .add_extension(
+            cx509.SubjectAlternativeName([cx509.DirectoryName(subject)]),
+            critical=False,
+        )
         # SubjectKeyIdentifier allows Windows to identify this cert in the chain
         .add_extension(
             cx509.SubjectKeyIdentifier.from_public_key(priv_key.public_key()),
