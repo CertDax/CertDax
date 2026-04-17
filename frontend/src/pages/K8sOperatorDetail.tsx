@@ -321,13 +321,13 @@ export default function K8sOperatorDetailPage() {
               <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
 {patchShell === 'bash'
   ? `kubectl patch secret certdax-operator-operator-token -n certdax-system \\\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\\nkubectl rollout restart deployment certdax-operator -n certdax-system`
-  : `kubectl patch secret certdax-operator-operator-token -n certdax-system \`\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}'; \`\nkubectl rollout restart deployment certdax-operator -n certdax-system`}
+  : `kubectl patch secret certdax-operator-operator-token -n certdax-system \`\n  -p "{\`"data\`":{\`"operator-token\`":\`"${btoa(newToken)}\`"}}"; \`\nkubectl rollout restart deployment certdax-operator -n certdax-system`}
               </pre>
               <button
                 onClick={() => copyToClipboard(
                   patchShell === 'bash'
                     ? `kubectl patch secret certdax-operator-operator-token -n certdax-system \\\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\\nkubectl rollout restart deployment certdax-operator -n certdax-system`
-                    : `kubectl patch secret certdax-operator-operator-token -n certdax-system \`\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}'; \`\nkubectl rollout restart deployment certdax-operator -n certdax-system`,
+                    : `kubectl patch secret certdax-operator-operator-token -n certdax-system \`\n  -p "{\`"data\`":{\`"operator-token\`":\`"${btoa(newToken)}\`"}}"; \`\nkubectl rollout restart deployment certdax-operator -n certdax-system`,
                   'patch-cmd'
                 )}
                 className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
