@@ -80,6 +80,13 @@ class AgentDetailResponse(DeploymentTargetResponse):
     failed_count: int = 0
     recent_logs: list[str] = []
 
+    @field_validator("recent_logs", mode="before")
+    @classmethod
+    def coerce_recent_logs(cls, v):
+        if v is None:
+            return []
+        return v
+
 
 class AgentCertificateAssign(BaseModel):
     certificate_id: int | None = None
