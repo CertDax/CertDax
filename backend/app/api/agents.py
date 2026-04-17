@@ -31,6 +31,28 @@ router = APIRouter()
 
 OFFLINE_THRESHOLD_SECONDS = 120
 
+_WINDOWS_AGENT_BINARIES = {
+    "amd64": "certdax-agent-windows-amd64.exe",
+    "arm64": "certdax-agent-windows-arm64.exe",
+    "386": "certdax-agent-windows-386.exe",
+}
+
+
+def _resolve_windows_agent_binary_path(arch: str) -> str:
+    import os
+
+    binary_name = _WINDOWS_AGENT_BINARIES.get(arch)
+    if not binary_name:
+        supported = ", ".join(sorted(_WINDOWS_AGENT_BINARIES))
+        raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {supported}")
+
+    binary_dir = os.path.realpath(os.path.abspath(settings.AGENT_BINARIES_DIR))
+    binary_path = os.path.realpath(os.path.join(binary_dir, binary_name))
+    if os.path.commonpath([binary_dir, binary_path]) != binary_dir:
+        raise HTTPException(status_code=400, detail="Invalid architecture path")
+
+    return binary_path
+
 
 def _compute_status(target: DeploymentTarget) -> str:
     if not target.last_seen:
@@ -844,13 +866,7 @@ def download_windows_agent_binary(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     # Validate and locate the pre-built Windows binary for requested arch
-    _valid_arches = {"amd64", "arm64", "386"}
-    if arch not in _valid_arches:
-        raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {', '.join(sorted(_valid_arches))}")
-    binary_dir = os.path.realpath(os.path.abspath(settings.AGENT_BINARIES_DIR))
-    windows_binary = os.path.realpath(os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe"))
-    if os.path.commonpath([binary_dir, windows_binary]) != binary_dir:
-        raise HTTPException(status_code=400, detail="Invalid architecture path")
+    windows_binary = _resolve_windows_agent_binary_path(arch)
     if not os.path.isfile(windows_binary):
         raise HTTPException(
             status_code=404,
@@ -1237,14 +1253,7 @@ def download_windows_installer(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     # Validate arch and locate the pre-built Windows binary
-    _valid_arches = {"amd64", "arm64", "386"}
-    if arch not in _valid_arches:
-        raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {', '.join(sorted(_valid_arches))}")
-    binary_dir = os.path.realpath(os.path.abspath(settings.AGENT_BINARIES_DIR))
-    windows_binary_candidate = os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe")
-    windows_binary = os.path.realpath(windows_binary_candidate)
-    if os.path.commonpath([binary_dir, windows_binary]) != binary_dir:
-        raise HTTPException(status_code=400, detail="Invalid architecture path")
+    windows_binary = _resolve_windows_agent_binary_path(arch)
     if not os.path.isfile(windows_binary):
         raise HTTPException(
             status_code=404,
@@ -1375,4 +1384,3 @@ Write-Host "Service $ServiceName installed and started." -ForegroundColor Green
             )
         },
     )
-
