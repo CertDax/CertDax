@@ -101,6 +101,16 @@ export default function AgentDetailPage() {
     prevLogCountRef.current = newCount;
   }, [agent?.recent_logs, autoScroll]);
 
+  // Clear deletingIds once the cert is confirmed gone from the server
+  useEffect(() => {
+    if (!agent || deletingIds.size === 0) return;
+    const currentIds = new Set(agent.assigned_certificates.map((ac) => ac.id));
+    setDeletingIds((prev) => {
+      const next = new Set([...prev].filter((id) => currentIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [agent?.assigned_certificates]);
+
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCertId) return;
@@ -128,12 +138,12 @@ export default function AgentDetailPage() {
     setDeletingIds(prev => new Set(prev).add(assignmentId));
     try {
       await api.delete(`/agents/${id}/certificates/${assignmentId}`);
+      // Let the 5-second poll remove the cert from the list so the
+      // "Deleting" badge stays visible until the server confirms it's gone.
     } catch (err) {
       alert('Error detaching certificate');
       setDeletingIds(prev => { const next = new Set(prev); next.delete(assignmentId); return next; });
     }
-    await fetchAgent();
-    setDeletingIds(prev => { const next = new Set(prev); next.delete(assignmentId); return next; });
   };
 
   const handleDelete = async () => {
