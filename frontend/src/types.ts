@@ -51,6 +51,7 @@ export interface CertificateAuthority {
   contact_email: string | null;
   has_account: boolean;
   has_eab: boolean;
+  is_global: boolean;
   is_active: boolean;
   created_at: string;
 }

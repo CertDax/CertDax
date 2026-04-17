@@ -147,6 +147,21 @@ export default function Providers() {
     fetchData();
   };
 
+  const handleDeleteCa = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this certificate authority?')) return;
+    try {
+      await api.delete(`/providers/cas/${id}`);
+      fetchData();
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { detail?: string } } };
+        alert(axiosErr.response?.data?.detail || 'Failed to delete CA');
+      } else {
+        alert('Failed to delete CA');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -408,7 +423,15 @@ export default function Providers() {
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {/* reserved for future delete action */}
+                    {!ca.is_global && (
+                      <button
+                        onClick={() => handleDeleteCa(ca.id)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete CA"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

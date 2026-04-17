@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, visible_group_ids
 from app.database import get_db
 from app.models.ca_group_account import CaGroupAccount
-from app.models.certificate import CertificateAuthority
+from app.models.certificate import Certificate, CertificateAuthority
 from app.models.provider import DnsProvider
 from app.models.user import User
 from app.schemas.provider import (
@@ -61,6 +61,7 @@ def list_cas(
         else:
             resp.has_account = ca.account_url is not None
         resp.has_eab = ca.eab_kid is not None
+        resp.is_global = ca.group_id is None
         result.append(resp)
     return result
 
@@ -93,6 +94,7 @@ def create_ca(
     db.refresh(ca)
     resp = CertificateAuthorityResponse.model_validate(ca)
     resp.has_eab = ca.eab_kid is not None
+    resp.is_global = ca.group_id is None
     return resp
 
 
@@ -147,7 +149,44 @@ def update_ca(
         resp.has_account = ca.account_url is not None
 
     resp.has_eab = ca.eab_kid is not None
+    resp.is_global = ca.group_id is None
     return resp
+
+
+@router.delete("/cas/{ca_id}")
+def delete_ca(
+    ca_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    ca = (
+        db.query(CertificateAuthority)
+        .filter(
+            CertificateAuthority.id == ca_id,
+            CertificateAuthority.group_id.in_(visible_group_ids(db, user, "providers")),
+        )
+        .first()
+    )
+    if not ca:
+        raise HTTPException(status_code=404, detail="CA not found")
+
+    if ca.group_id is None:
+        raise HTTPException(status_code=403, detail="Global CAs cannot be deleted")
+
+    cert_count = (
+        db.query(Certificate)
+        .filter(Certificate.ca_id == ca_id)
+        .count()
+    )
+    if cert_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete: {cert_count} certificate(s) still reference this CA",
+        )
+
+    db.delete(ca)
+    db.commit()
+    return {"detail": "Certificate authority deleted"}
 
 
 # DNS Providers
