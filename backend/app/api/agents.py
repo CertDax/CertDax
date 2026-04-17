@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
@@ -39,8 +40,6 @@ _WINDOWS_AGENT_BINARIES = {
 
 
 def _resolve_windows_agent_binary_path(arch: str) -> str:
-    import os
-
     binary_name = _WINDOWS_AGENT_BINARIES.get(arch)
     if not binary_name:
         supported = ", ".join(sorted(_WINDOWS_AGENT_BINARIES))
