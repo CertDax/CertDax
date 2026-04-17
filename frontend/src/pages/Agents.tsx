@@ -640,22 +640,9 @@ Start-Service CertDaxAgent`}</pre>
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                        <Monitor className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-blue-800">IIS / Web apps</p>
-                        <p className="text-xs text-blue-600 font-mono">C:\ProgramData\CertDax\certs</p>
-                      </div>
-                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-center">
-                        <Monitor className="w-6 h-6 text-indigo-600 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-indigo-800">Exchange / SMTP</p>
-                        <p className="text-xs text-indigo-600 font-mono">C:\ProgramData\CertDax\certs</p>
-                      </div>
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
-                        <Monitor className="w-6 h-6 text-purple-600 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-purple-800">Custom application</p>
-                        <p className="text-xs text-purple-600 font-mono">Configurable path</p>
-                      </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 flex items-center gap-3">
+                      <Monitor className="w-5 h-5 text-slate-500 flex-shrink-0" />
+                      <p className="text-xs text-slate-600">Certificates are deployed to <code className="bg-slate-200 px-1 rounded font-mono">C:\ProgramData\CertDax\certs</code></p>
                     </div>
                   )}
                 </div>
