@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,6 +24,51 @@ import (
 
 var version = "dev"
 
+// logRingBuffer holds the last N log lines in memory for live log shipping.
+type logRingBuffer struct {
+	mu      sync.Mutex
+	entries []string
+	size    int
+	pos     int
+	full    bool
+}
+
+func newLogRingBuffer(n int) *logRingBuffer {
+	return &logRingBuffer{entries: make([]string, n), size: n}
+}
+
+func (rb *logRingBuffer) Write(p []byte) (int, error) {
+	line := strings.TrimRight(string(p), "\n")
+	if line == "" {
+		return len(p), nil
+	}
+	rb.mu.Lock()
+	rb.entries[rb.pos] = line
+	rb.pos = (rb.pos + 1) % rb.size
+	if rb.pos == 0 {
+		rb.full = true
+	}
+	rb.mu.Unlock()
+	return len(p), nil
+}
+
+func (rb *logRingBuffer) Lines() []string {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	if !rb.full {
+		out := make([]string, rb.pos)
+		copy(out, rb.entries[:rb.pos])
+		return out
+	}
+	out := make([]string, rb.size)
+	copy(out, rb.entries[rb.pos:])
+	copy(out[rb.size-rb.pos:], rb.entries[:rb.pos])
+	return out
+}
+
+// logBuf is the global ring buffer that captures all log output.
+var logBuf = newLogRingBuffer(200)
+
 // setupLogging configures the logger to write to a file on Windows.
 // On Linux the default stderr output is captured by systemd/journald.
 // Returns a cleanup function that should be deferred by the caller.
@@ -30,6 +76,8 @@ func setupLogging() func() {
 	log.SetFlags(log.Ldate | log.Ltime)
 
 	if runtime.GOOS != "windows" {
+		// Linux: write to stderr and ring buffer
+		log.SetOutput(io.MultiWriter(os.Stderr, logBuf))
 		return func() {}
 	}
 
@@ -39,7 +87,8 @@ func setupLogging() func() {
 	}
 	logDir := filepath.Join(programData, "CertDax", "logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		// Can't create log dir — fall back to stderr only
+		// Can't create log dir — fall back to ring buffer only
+		log.SetOutput(logBuf)
 		return func() {}
 	}
 
@@ -53,15 +102,13 @@ func setupLogging() func() {
 
 	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		// Can't open log file — fall back to stderr only
+		// Can't open log file — fall back to ring buffer only
+		log.SetOutput(logBuf)
 		return func() {}
 	}
 
-	// In service mode os.Stderr has no console and its Write() may fail.
-	// io.MultiWriter returns on the first writer error, so if Stderr is listed
-	// first the file never gets written. Write to the file only on Windows;
-	// when running interactively the user can tail the log file instead.
-	log.SetOutput(f)
+	// Write to file and ring buffer.
+	log.SetOutput(io.MultiWriter(f, logBuf))
 	log.Printf("[INFO] Logging to %s", logPath)
 
 	return func() { f.Close() }
@@ -139,11 +186,12 @@ func (a *Agent) apiRequest(method, path string, body interface{}) (*http.Respons
 
 func (a *Agent) heartbeat() {
 	hostname, _ := os.Hostname()
-	payload := map[string]string{
-		"hostname": hostname,
-		"os":       getOSPrettyName(),
-		"arch":     runtime.GOARCH,
-		"version":  version,
+	payload := map[string]interface{}{
+		"hostname":    hostname,
+		"os":          getOSPrettyName(),
+		"arch":        runtime.GOARCH,
+		"version":     version,
+		"recent_logs": logBuf.Lines(),
 	}
 
 	resp, err := a.apiRequest("POST", "/api/agent/heartbeat", payload)

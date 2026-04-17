@@ -40,6 +40,9 @@ def agent_heartbeat(
         client_ip = request.client.host
     if client_ip:
         target.agent_ip = client_ip
+    if req.recent_logs is not None:
+        import json
+        target.recent_logs = json.dumps(req.recent_logs[-200:])
     db.commit()
     return {"status": "ok"}
 

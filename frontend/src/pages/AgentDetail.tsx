@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -21,6 +21,7 @@ import {
   Download,
   Monitor,
   ChevronRight,
+  ScrollText,
 } from 'lucide-react';
 import api from '../services/api';
 import type { AgentDetail, Certificate, SelfSignedCertificate } from '../types';
@@ -42,7 +43,6 @@ export default function AgentDetailPage() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [newToken, setNewToken] = useState('');
   const [showToken, setShowToken] = useState(false);
-  const [copied, setCopied] = useState('');
 
   // Windows installer state
   interface SelfSignedCA { id: number; common_name: string }
@@ -59,6 +59,13 @@ export default function AgentDetailPage() {
   const [editPreDeployScript, setEditPreDeployScript] = useState('');
   const [editPostDeployScript, setEditPostDeployScript] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Live logs modal
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [copied, setCopied] = useState('');
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const prevLogCountRef = useRef(0);
 
   const fetchAgent = async () => {
     const { data } = await api.get(`/agents/${id}`);
@@ -81,6 +88,15 @@ export default function AgentDetailPage() {
     const interval = setInterval(fetchAgent, 5000);
     return () => clearInterval(interval);
   }, [id]);
+
+  // Auto-scroll log modal when new lines arrive
+  useEffect(() => {
+    const newCount = agent?.recent_logs?.length || 0;
+    if (autoScroll && logContainerRef.current && newCount !== prevLogCountRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+    prevLogCountRef.current = newCount;
+  }, [agent?.recent_logs, autoScroll]);
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -277,6 +293,18 @@ export default function AgentDetailPage() {
           className="px-4 py-2 text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium"
         >
           Delete
+        </button>
+        <button
+          onClick={() => setShowLogsModal(true)}
+          className="flex items-center gap-1.5 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium"
+        >
+          <ScrollText className="w-4 h-4" />
+          Live Logs
+          {(agent.recent_logs?.length || 0) > 0 && (
+            <span className="inline-flex items-center justify-center w-5 h-5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+              {agent.recent_logs.length > 99 ? '99+' : agent.recent_logs.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -687,6 +715,75 @@ export default function AgentDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Live Logs modal */}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh]">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700 flex-shrink-0">
+              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <ScrollText className="w-4 h-4 text-emerald-400" />
+                Live Logs — {agent.name}
+                <span className="text-xs text-slate-500">
+                  ({agent.recent_logs?.length || 0} lines)
+                </span>
+              </h2>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoScroll}
+                    onChange={(e) => setAutoScroll(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                  />
+                  Auto-scroll
+                </label>
+                <button
+                  onClick={() => {
+                    const text = (agent.recent_logs || []).join('\n');
+                    copyToClipboard(text, 'logs');
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                >
+                  {copied === 'logs' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy
+                </button>
+                <button
+                  onClick={() => setShowLogsModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            {/* Log output */}
+            <div
+              ref={logContainerRef}
+              className="overflow-auto flex-1 p-4 font-mono text-xs leading-5"
+            >
+              {agent.recent_logs && agent.recent_logs.length > 0 ? (
+                agent.recent_logs.map((line, i) => {
+                  const isError = /\bERROR\b/i.test(line);
+                  const isWarn = /\bWARN\b/i.test(line);
+                  return (
+                    <div
+                      key={i}
+                      className={isError ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-slate-300'}
+                    >
+                      {line}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-slate-500 text-center py-12">
+                  No logs available yet. Logs appear after the first heartbeat.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Install modal */}
       {showInstallModal && newToken && (() => {

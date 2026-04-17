@@ -78,6 +78,7 @@ class AgentDetailResponse(DeploymentTargetResponse):
     deployment_count: int = 0
     deployed_count: int = 0
     failed_count: int = 0
+    recent_logs: list[str] = []
 
 
 class AgentCertificateAssign(BaseModel):
@@ -123,6 +124,7 @@ class AgentHeartbeat(BaseModel):
     os: str | None = None
     arch: str | None = None
     version: str | None = None
+    recent_logs: list[str] | None = None
 
 
 class AgentDeploymentStatus(BaseModel):

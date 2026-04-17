@@ -171,6 +171,14 @@ def get_agent(
     resp = AgentDetailResponse.model_validate(target)
     resp.status = _compute_status(target)
 
+    # Parse stored recent_logs JSON
+    if target.recent_logs:
+        try:
+            import json as _json
+            resp.recent_logs = _json.loads(target.recent_logs)
+        except (ValueError, TypeError):
+            resp.recent_logs = []
+
     # Only show certificates the user has access to
     cert_gids = visible_group_ids(db, user, "certificates")
     ss_gids = visible_group_ids(db, user, "self_signed")
