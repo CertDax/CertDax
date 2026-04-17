@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
   FolderTree,
@@ -13,6 +13,7 @@ import api from '../services/api';
 import type { AgentGroupInfo } from '../types';
 
 export default function AgentGroups() {
+  const navigate = useNavigate();
   const [groups, setGroups] = useState<AgentGroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -147,7 +148,7 @@ export default function AgentGroups() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
         {groups.length === 0 ? (
           <div className="px-6 py-12 text-center text-slate-400">
             <FolderTree className="w-10 h-10 mx-auto mb-2 text-slate-300" />
@@ -155,6 +156,7 @@ export default function AgentGroups() {
             <p className="text-sm mt-1">Create a group to bundle agents</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[500px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -167,7 +169,11 @@ export default function AgentGroups() {
             </thead>
             <tbody className="divide-y divide-slate-200">
               {groups.map((g) => (
-                <tr key={g.id} className="hover:bg-slate-50">
+                <tr
+                  key={g.id}
+                  className="hover:bg-slate-50 cursor-pointer"
+                  onClick={() => navigate(`/agent-groups/${g.id}`)}
+                >
                   <td className="px-6 py-4">
                     <Link
                       to={`/agent-groups/${g.id}`}
@@ -191,7 +197,10 @@ export default function AgentGroups() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
-                      onClick={() => handleDelete(g.id, g.name)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(g.id, g.name);
+                      }}
                       className="text-red-500 hover:text-red-700 p-1"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -201,6 +210,7 @@ export default function AgentGroups() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

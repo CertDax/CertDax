@@ -41,8 +41,8 @@ export default function NotificationBell() {
   // Show custom permission prompt after 2s if not yet answered
   useEffect(() => {
     if ('Notification' in window && window.Notification.permission === 'default') {
-      const dismissed = localStorage.getItem('certdax-notif-prompt-dismissed');
-      if (!dismissed) {
+      const choice = localStorage.getItem('certdax-notif-prompt-choice');
+      if (!choice) {
         const timer = setTimeout(() => setShowPermissionPrompt(true), 2000);
         return () => clearTimeout(timer);
       }
@@ -53,13 +53,14 @@ export default function NotificationBell() {
     if ('Notification' in window) {
       window.Notification.requestPermission().then(() => {
         setShowPermissionPrompt(false);
+        localStorage.setItem('certdax-notif-prompt-choice', 'allowed');
       });
     }
   };
 
   const handleDismissPrompt = () => {
     setShowPermissionPrompt(false);
-    localStorage.setItem('certdax-notif-prompt-dismissed', 'true');
+    localStorage.setItem('certdax-notif-prompt-choice', 'dismissed');
   };
 
   const addToast = useCallback((notif: Notification) => {
@@ -185,7 +186,7 @@ export default function NotificationBell() {
         </button>
 
         {open && (
-          <div className="absolute right-0 mt-2 w-[28rem] bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+          <div className="fixed inset-x-0 top-16 mx-2 sm:absolute sm:inset-x-auto sm:top-auto sm:mx-0 sm:right-0 sm:mt-2 w-auto sm:w-[28rem] bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <h3 className="font-semibold text-slate-900 text-sm">Notifications</h3>
               <div className="flex items-center gap-3">
@@ -254,10 +255,10 @@ export default function NotificationBell() {
       </div>
 
       {/* Fixed bottom-right toast container */}
-      <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-4 left-4 right-4 sm:left-auto z-[9999] flex flex-col gap-3 pointer-events-none">
         {/* Browser notification permission prompt */}
         {showPermissionPrompt && (
-          <div className="pointer-events-auto bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-80 animate-[slideUp_0.3s_ease-out]">
+          <div className="pointer-events-auto bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-full sm:w-80 animate-[slideUp_0.3s_ease-out]">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center shrink-0">
                 <BellRing className="w-5 h-5 text-emerald-600" />
@@ -300,7 +301,7 @@ export default function NotificationBell() {
               handleClick(toast.notification);
               removeToast(toast.id);
             }}
-            className="pointer-events-auto bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-96 cursor-pointer hover:bg-slate-50 transition-colors animate-[slideUp_0.3s_ease-out]"
+            className="pointer-events-auto bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-full sm:w-96 cursor-pointer hover:bg-slate-50 transition-colors animate-[slideUp_0.3s_ease-out]"
           >
             <div className="flex items-start gap-3">
               {getNotificationIcon(toast.notification.type, 'w-5 h-5')}

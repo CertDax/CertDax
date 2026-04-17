@@ -271,7 +271,7 @@ export default function AgentGroupDetailPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
           {group.members.length === 0 ? (
             <div className="px-6 py-8 text-center text-slate-400">
               <Monitor className="w-10 h-10 mx-auto mb-2 text-slate-300" />
@@ -279,6 +279,7 @@ export default function AgentGroupDetailPage() {
               <p className="text-sm mt-1">Add agents to deploy certificates to all members</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full min-w-[500px]">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
@@ -290,7 +291,11 @@ export default function AgentGroupDetailPage() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {group.members.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-50">
+                  <tr
+                    key={m.id}
+                    className="hover:bg-slate-50 cursor-pointer"
+                    onClick={() => navigate(`/agents/${m.target_id}`)}
+                  >
                     <td className="px-6 py-4">
                       <Link
                         to={`/agents/${m.target_id}`}
@@ -317,7 +322,10 @@ export default function AgentGroupDetailPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => handleRemoveMember(m.target_id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveMember(m.target_id);
+                        }}
                         className="text-red-500 hover:text-red-700 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -327,6 +335,7 @@ export default function AgentGroupDetailPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

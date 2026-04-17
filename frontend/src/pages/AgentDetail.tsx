@@ -514,7 +514,7 @@ export default function AgentDetailPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
           {agent.assigned_certificates.length === 0 ? (
             <div className="px-6 py-8 text-center text-slate-400">
               <ShieldCheck className="w-10 h-10 mx-auto mb-2 text-slate-300" />
@@ -524,6 +524,7 @@ export default function AgentDetailPage() {
               </p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full min-w-[600px]">
               <thead className="bg-slate-50">
                 <tr>
@@ -609,6 +610,7 @@ export default function AgentDetailPage() {
                 })()}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
