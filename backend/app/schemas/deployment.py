@@ -80,6 +80,9 @@ class AgentDetailResponse(DeploymentTargetResponse):
     deployed_count: int = 0
     failed_count: int = 0
     recent_logs: list[str] = []
+    # IDs of certs that still have a pending_removal deployment (agent hasn't confirmed removal yet)
+    pending_removal_cert_ids: list[int] = []
+    pending_removal_ss_ids: list[int] = []
 
     @field_validator("recent_logs", mode="before")
     @classmethod

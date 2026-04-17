@@ -67,8 +67,9 @@ export default function AgentDetailPage() {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const prevLogCountRef = useRef(0);
 
-  // Optimistic deleting state: maps assignment ID → agent's last_seen at the moment of deletion
-  const [deletingInfo, setDeletingInfo] = useState<Map<number, string | null>>(new Map());
+  // Deleting state: keyed by "cert:ID" or "ss:ID" so we can match against
+  // the backend's pending_removal_cert_ids / pending_removal_ss_ids lists.
+  const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
 
   const fetchAgent = async () => {
     const { data } = await api.get(`/agents/${id}`);
@@ -101,27 +102,36 @@ export default function AgentDetailPage() {
     prevLogCountRef.current = newCount;
   }, [agent?.recent_logs, autoScroll]);
 
-  // Clear deleting state only once the cert is gone AND the agent has sent
-  // a new heartbeat since the deletion was triggered (proves the agent processed it).
+  // Clear deleting state only when the backend confirms the pending_removal
+  // deployment is gone (i.e. the agent has actually processed and confirmed removal).
+  // For certs that were never deployed, there's no pending_removal record, so
+  // they clear as soon as the assignment disappears from assigned_certificates.
   useEffect(() => {
-    if (!agent || deletingInfo.size === 0) return;
-    const currentIds = new Set(agent.assigned_certificates.map((ac) => ac.id));
-    setDeletingInfo((prev) => {
+    if (!agent || deletingKeys.size === 0) return;
+    const assignedCertIds = new Set(agent.assigned_certificates.map((ac) => ac.certificate_id).filter(Boolean));
+    const assignedSsIds = new Set(agent.assigned_certificates.map((ac) => ac.self_signed_certificate_id).filter(Boolean));
+    const pendingCertIds = new Set(agent.pending_removal_cert_ids ?? []);
+    const pendingSsIds = new Set(agent.pending_removal_ss_ids ?? []);
+    setDeletingKeys((prev) => {
       let changed = false;
-      const next = new Map(prev);
-      for (const [assignId, lastSeenAtDeletion] of next) {
-        const certGone = !currentIds.has(assignId);
-        const agentCheckedInSince =
-          !lastSeenAtDeletion ||
-          (!!agent.last_seen && agent.last_seen > lastSeenAtDeletion);
-        if (certGone && agentCheckedInSince) {
-          next.delete(assignId);
-          changed = true;
+      const next = new Set(prev);
+      for (const key of next) {
+        const [type, rawId] = key.split(':');
+        const numId = Number(rawId);
+        if (type === 'cert') {
+          // Clear when: no longer assigned AND no longer pending_removal
+          if (!assignedCertIds.has(numId) && !pendingCertIds.has(numId)) {
+            next.delete(key); changed = true;
+          }
+        } else if (type === 'ss') {
+          if (!assignedSsIds.has(numId) && !pendingSsIds.has(numId)) {
+            next.delete(key); changed = true;
+          }
         }
       }
       return changed ? next : prev;
     });
-  }, [agent?.assigned_certificates, agent?.last_seen]);
+  }, [agent?.assigned_certificates, agent?.pending_removal_cert_ids, agent?.pending_removal_ss_ids]);
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,14 +157,22 @@ export default function AgentDetailPage() {
 
   const handleUnassign = async (assignmentId: number) => {
     if (!confirm('Detach certificate from this agent?')) return;
-    const lastSeenAtDeletion = agent?.last_seen ?? null;
-    setDeletingInfo(prev => new Map(prev).set(assignmentId, lastSeenAtDeletion));
+    // Find the cert being removed so we can key by cert ID (not assignment ID,
+    // which disappears from the backend immediately after DELETE).
+    const ac = agent?.assigned_certificates.find((a) => a.id === assignmentId);
+    const key = ac?.certificate_id
+      ? `cert:${ac.certificate_id}`
+      : ac?.self_signed_certificate_id
+        ? `ss:${ac.self_signed_certificate_id}`
+        : null;
+    if (key) setDeletingKeys((prev) => new Set(prev).add(key));
     try {
       await api.delete(`/agents/${id}/certificates/${assignmentId}`);
-      // "Deleting" stays visible until the agent checks in after the deletion.
+      // "Deleting" stays until the backend reports pending_removal is gone
+      // (i.e. the agent has confirmed removal via the status callback).
     } catch (err) {
       alert('Error detaching certificate');
-      setDeletingInfo(prev => { const next = new Map(prev); next.delete(assignmentId); return next; });
+      if (key) setDeletingKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
     }
   };
 
@@ -693,7 +711,7 @@ export default function AgentDetailPage() {
                           </td>
                           <td className="px-6 py-4">
                             <StatusBadge status={
-                              deletingInfo.has(ac.id)
+                              deletingKeys.has(`cert:${ac.certificate_id}`)
                                 ? 'deleting'
                                 : ac.deployment_status === 'deployed'
                                   ? (ac.certificate_status || 'valid')
@@ -703,7 +721,7 @@ export default function AgentDetailPage() {
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingInfo.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`cert:${ac.certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>
@@ -737,7 +755,7 @@ export default function AgentDetailPage() {
                           </td>
                           <td className="px-6 py-4">
                             <StatusBadge status={
-                              deletingInfo.has(ac.id)
+                              deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)
                                 ? 'deleting'
                                 : ac.deployment_status === 'deployed'
                                   ? (ac.certificate_status || 'valid')
@@ -747,7 +765,7 @@ export default function AgentDetailPage() {
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingInfo.has(ac.id)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>

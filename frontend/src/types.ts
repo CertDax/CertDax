@@ -107,6 +107,8 @@ export interface AgentDetail extends DeploymentTarget {
   deployed_count: number;
   failed_count: number;
   recent_logs: string[];
+  pending_removal_cert_ids: number[];
+  pending_removal_ss_ids: number[];
 }
 
 export interface CertificateDeployment {

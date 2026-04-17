@@ -249,6 +249,18 @@ def get_agent(
     resp.deployed_count = dep_query.filter(CertificateDeployment.status == "deployed").count()
     resp.failed_count = dep_query.filter(CertificateDeployment.status == "failed").count()
 
+    # Pending removal — certs the agent has been told to remove but hasn't confirmed yet
+    pending_removals = (
+        db.query(CertificateDeployment)
+        .filter(
+            CertificateDeployment.target_id == agent_id,
+            CertificateDeployment.status == "pending_removal",
+        )
+        .all()
+    )
+    resp.pending_removal_cert_ids = [d.certificate_id for d in pending_removals if d.certificate_id]
+    resp.pending_removal_ss_ids = [d.self_signed_certificate_id for d in pending_removals if d.self_signed_certificate_id]
+
     # Agent group memberships — only show groups the user can see
     agent_gids = visible_group_ids(db, user, "agents")
     memberships = (
