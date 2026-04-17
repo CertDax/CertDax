@@ -4,7 +4,8 @@ If you discover a security vulnerability or incident, please notify us as soon a
 
 ## Reporting a Vulnerability
 
-- Please contact us via email at **info@squadrasec.com** OR by creating a security issue on this GitHub repository.
+- Please contact us via email at **info@squadrasec.com** OR by opening a GitHub Issue on this repository.
+- For sensitive details, prefer email and avoid posting exploit details publicly in GitHub Issues.
 - Include as much detail as possible to help us understand and reproduce the issue.
 
 ## Response Policy
