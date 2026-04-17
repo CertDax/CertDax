@@ -60,6 +60,7 @@ export default function Agents() {
 
   // Install modal Windows state
   const [modalCaId, setModalCaId] = useState<number | ''>('');
+  const [modalArch, setModalArch] = useState<'amd64' | 'arm64' | '386'>('amd64');
   const [downloadingBinary, setDownloadingBinary] = useState(false);
   const [downloadingScript, setDownloadingScript] = useState(false);
   const [downloadingInstaller, setDownloadingInstaller] = useState(false);
@@ -168,7 +169,7 @@ export default function Agents() {
     setDownloadingBinary(true);
     try {
       const resp = await api.get(
-        `/agents/${showInstallModal.id}/install/windows-binary?ca_id=${modalCaId}`,
+        `/agents/${showInstallModal.id}/install/windows-binary?ca_id=${modalCaId}&arch=${modalArch}`,
         { responseType: 'blob' }
       );
       const url = URL.createObjectURL(resp.data);
@@ -222,7 +223,7 @@ export default function Agents() {
     setDownloadingInstaller(true);
     try {
       const resp = await api.get(
-        `/agents/${showInstallModal.id}/install/windows-installer?ca_id=${modalCaId}`,
+        `/agents/${showInstallModal.id}/install/windows-installer?ca_id=${modalCaId}&arch=${modalArch}`,
         { responseType: 'blob' }
       );
       const url = URL.createObjectURL(resp.data);
@@ -941,6 +942,29 @@ sudo systemctl enable --now certdax-agent`}</pre>
                         ))}
                       </select>
                     )}
+                  </div>
+
+                  {/* Architecture selector */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Architecture</label>
+                    <p className="text-xs text-slate-500 mb-2">
+                      The PowerShell one-liner auto-detects this. Only needed for manual downloads below.
+                    </p>
+                    <div className="flex gap-2">
+                      {(['amd64', 'arm64', '386'] as const).map((a) => (
+                        <button
+                          key={a}
+                          onClick={() => setModalArch(a)}
+                          className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                            modalArch === a
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'bg-white border-slate-300 text-slate-600 hover:border-blue-400'
+                          }`}
+                        >
+                          {a === 'amd64' ? 'x64 (AMD64)' : a === 'arm64' ? 'ARM64' : 'x86 (32-bit)'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Primary: PowerShell one-liner — no browser download = no SmartScreen */}

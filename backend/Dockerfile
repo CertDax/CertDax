@@ -14,7 +14,9 @@ RUN CGO_ENABLED=0 GOOS=linux  GOARCH=amd64 go build -ldflags "-s -w -X main.vers
     CGO_ENABLED=0 GOOS=linux  GOARCH=arm64 go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-linux-arm64   . && \
     CGO_ENABLED=0 GOOS=linux  GOARCH=arm   go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-linux-arm     . && \
     CGO_ENABLED=0 GOOS=linux  GOARCH=386   go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-linux-386     . && \
-    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-windows-amd64.exe .
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-windows-amd64.exe . && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-windows-arm64.exe . && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=386   go build -ldflags "-s -w -X main.version=${AGENT_VERSION}" -o /out/certdax-agent-windows-386.exe
 
 # Stage 2: Backend application
 FROM python:3.13-slim

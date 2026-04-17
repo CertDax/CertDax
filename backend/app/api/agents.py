@@ -813,6 +813,7 @@ def download_windows_agent_binary(
     request: Request,
     db: Session = Depends(get_db),
     token: Optional[str] = Query(default=None),
+    arch: str = Query(default="amd64", description="Windows architecture: amd64, arm64, 386"),
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
 ):
     """
@@ -842,13 +843,16 @@ def download_windows_agent_binary(
     if not target:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Locate pre-built Windows binary
+    # Validate and locate the pre-built Windows binary for requested arch
+    _valid_arches = {"amd64", "arm64", "386"}
+    if arch not in _valid_arches:
+        raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {', '.join(sorted(_valid_arches))}")
     binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
-    windows_binary = os.path.join(binary_dir, "certdax-agent-windows-amd64.exe")
+    windows_binary = os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe")
     if not os.path.isfile(windows_binary):
         raise HTTPException(
             status_code=404,
-            detail="Windows agent binary not found. Make sure the backend was built with Windows support.",
+            detail=f"Windows agent binary for {arch} not found. Make sure the backend was built with Windows support.",
         )
 
     # Generate code-signing cert signed by the selected CA
@@ -959,7 +963,7 @@ def get_windows_install_script(
     db.commit()
 
     auth_header = f'Authorization: Bearer {token}'
-    binary_url = f"{api_url}/api/agents/{agent_id}/install/windows-binary?ca_id={ca_id}"
+    binary_base_url = f"{api_url}/api/agents/{agent_id}/install/windows-binary?ca_id={ca_id}"
     ca_cert_url = f"{api_url}/api/agents/{agent_id}/install/ca-cert?ca_id={ca_id}"
 
     script = f"""#Requires -RunAsAdministrator
@@ -982,12 +986,28 @@ Write-Host "=========================" -ForegroundColor Cyan
 Write-Host "Agent: $AgentName"
 Write-Host ""
 
+# Detect architecture
+$ProcessorArch = $env:PROCESSOR_ARCHITECTURE
+# PROCESSOR_ARCHITEW6432 is set when running 32-bit PowerShell on a 64-bit OS
+if ($env:PROCESSOR_ARCHITEW6432) {{ $ProcessorArch = $env:PROCESSOR_ARCHITEW6432 }}
+$Arch = switch ($ProcessorArch) {{
+    'AMD64' {{ 'amd64' }}
+    'ARM64' {{ 'arm64' }}
+    'x86'   {{ '386' }}
+    default {{ throw "Unsupported processor architecture: $ProcessorArch" }}
+}}
+Write-Host "Detected architecture: $ProcessorArch ($Arch)" -ForegroundColor DarkGray
+Write-Host ""
+
+$BinaryUrl  = "{binary_base_url}&arch=$Arch"
+$CaCertUrl  = "{ca_cert_url}"
+$headers    = @{{ Authorization = "Bearer $AgentToken" }}
+
 # Step 1 – Install CA certificate into Trusted Root + Trusted Publishers
 # Adding to TrustedPublisher suppresses the SmartScreen reputation warning for this CA.
 Write-Host "[1/4] Installing CA certificate into Trusted Root + Trusted Publishers..." -ForegroundColor Yellow
 $caCertPath = "$env:TEMP\\certdax-ca.crt"
-$headers = @{{ Authorization = "Bearer $AgentToken" }}
-Invoke-WebRequest -Uri "{ca_cert_url}" -Headers $headers -OutFile $caCertPath
+Invoke-WebRequest -Uri $CaCertUrl -Headers $headers -OutFile $caCertPath
 Import-Certificate -FilePath $caCertPath -CertStoreLocation Cert:\\LocalMachine\\Root | Out-Null
 Import-Certificate -FilePath $caCertPath -CertStoreLocation Cert:\\LocalMachine\\TrustedPublisher | Out-Null
 Remove-Item $caCertPath -Force
@@ -1002,7 +1022,7 @@ if ($existingService) {{
     Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 }}
-Invoke-WebRequest -Uri "{binary_url}" -Headers $headers -OutFile $BinaryPath
+Invoke-WebRequest -Uri $BinaryUrl -Headers $headers -OutFile $BinaryPath
 Write-Host "   Binary downloaded to $BinaryPath" -ForegroundColor Green
 
 # Step 3 – Write configuration file
@@ -1192,6 +1212,7 @@ def download_windows_installer(
     ca_id: int,
     request: Request,
     db: Session = Depends(get_db),
+    arch: str = Query(default="amd64", description="Windows architecture: amd64, arm64, 386"),
     user: User = Depends(get_current_user),
 ):
     """
@@ -1213,13 +1234,16 @@ def download_windows_installer(
     if not target:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Locate pre-built Windows binary
+    # Validate arch and locate the pre-built Windows binary
+    _valid_arches = {"amd64", "arm64", "386"}
+    if arch not in _valid_arches:
+        raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {', '.join(sorted(_valid_arches))}")
     binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
-    windows_binary = os.path.join(binary_dir, "certdax-agent-windows-amd64.exe")
+    windows_binary = os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe")
     if not os.path.isfile(windows_binary):
         raise HTTPException(
             status_code=404,
-            detail="Windows agent binary not found. Make sure the backend was built with Windows support.",
+            detail=f"Windows agent binary for {arch} not found. Make sure the backend was built with Windows support.",
         )
 
     # Code-sign the binary using the chosen CA

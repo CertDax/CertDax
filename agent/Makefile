@@ -11,7 +11,9 @@ PLATFORMS := \
 	linux/arm64 \
 	linux/arm \
 	linux/386 \
-	windows/amd64
+	windows/amd64 \
+	windows/arm64 \
+	windows/386
 
 .PHONY: all clean build $(PLATFORMS)
 
