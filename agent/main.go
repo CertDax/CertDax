@@ -342,7 +342,7 @@ func (a *Agent) deployCertificate(deploymentID int) {
 	if isRenewal {
 		action = "Renewing certificate"
 	}
-	log.Printf("[INFO] Deployment %d: %s '%s' → %s (format: %s)", deploymentID, action, certData.CommonName, deployPath, format)
+	log.Printf("[INFO] Deployment %d: %s '%s' -> %s (format: %s)", deploymentID, action, certData.CommonName, deployPath, format)
 
 	// Create deploy directory
 	if err := os.MkdirAll(deployPath, 0755); err != nil {
