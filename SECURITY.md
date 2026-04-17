@@ -17,7 +17,7 @@ If you discover a security vulnerability or incident, please notify us as soon a
 
 - Please report potential security issues as soon as possible after discovery.
 - Please allow us a reasonable amount of time to resolve the issue before public disclosure or disclosure to a third-party.
-- If appropriate, we may publicly disclose the issue before resolving it.
+- If appropriate (for example, to protect users during active abuse), we may publicly disclose the issue before resolving it.
 - Make a good faith effort to avoid privacy violations, destruction of data, and interruption or degradation of our service.
 - Only interact with your own accounts or those for which you have explicit permission.
 
