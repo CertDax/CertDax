@@ -79,8 +79,8 @@ export default function RequestCertificate() {
   const isLetsEncrypt = selectedCa
     ? (() => {
         try {
-          const host = new URL(selectedCa.directory_url).hostname.toLowerCase();
-          return host === 'letsencrypt.org' || host.endsWith('.letsencrypt.org');
+          const hostname = new URL(selectedCa.directory_url).hostname.toLowerCase();
+          return hostname === 'letsencrypt.org' || hostname.endsWith('.letsencrypt.org');
         } catch {
           return false;
         }
