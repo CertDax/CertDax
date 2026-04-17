@@ -112,7 +112,7 @@ Open http://localhost:5173 in your browser.
 
 ## Deploy Agent
 
-The deploy agent is a statically compiled Go binary that runs on any Linux distribution without dependencies. Available for **amd64**, **arm64**, **arm** and **386** architectures.
+The deploy agent is a statically compiled Go binary that runs on any Linux distribution without dependencies. Available for **amd64**, **arm64**, **arm** and **386** architectures. A [Windows agent](#windows-deploy-agent) is also available (see below).
 
 ### Quick Install
 
@@ -169,7 +169,140 @@ make build
 ls -la dist/
 ```
 
-## Kubernetes Operator
+## Windows Deploy Agent
+
+The Windows agent is the same statically compiled Go binary, packaged for Windows. Available for **x64 (amd64)**, **ARM64**, and **x86 (32-bit)** architectures.
+
+### Prerequisites
+
+- Windows 10 / Windows Server 2016 or later
+- PowerShell 5.1 or later (pre-installed on all supported Windows versions)
+- An elevated (Administrator) PowerShell session
+
+### Quick Install — PowerShell One-Liner (Recommended)
+
+The easiest way is to use the PowerShell one-liner from the CertDax UI:
+
+1. Go to **Agents** in the CertDax dashboard
+2. Click **Add agent** and select **Windows** as the OS type
+3. Select a **Self-Signed CA** to code-sign the agent binary (this suppresses SmartScreen warnings)
+4. Fill in the agent name and hostname, then click **Create**
+5. Click the **Install** button on the newly created agent
+6. Copy the PowerShell one-liner and run it in an **elevated PowerShell** session on the target machine
+
+```powershell
+# Example (actual command comes from the UI with a pre-embedded token):
+iwr -useb "https://certdax.example.com/api/agents/1/install/windows-script?ca_id=1&token=..." | iex
+```
+
+The script will:
+- Automatically detect the CPU architecture (amd64 / ARM64 / x86)
+- Download and verify the signed agent binary
+- Install it to `C:\ProgramData\CertDax\certdax-agent.exe`
+- Create the configuration file at `C:\ProgramData\CertDax\config.yaml`
+- Register and start a **Windows Service** (`CertDaxAgent`) set to start automatically
+
+> **Note:** The NSIS setup wizard (`.exe`) installs the binary to `C:\Program Files\CertDax\` instead.
+
+### Manual Installation
+
+If you prefer to install without running a remote script:
+
+**1. Download the binary**
+
+Download `certdax-agent-windows-amd64.exe` (or `arm64` / `386`) from the CertDax UI:
+
+- Go to **Agents** → your agent → **Install** → *Advanced / scripted install options* → **certdax-agent.exe (signed)**
+
+**2. Place the binary**
+
+```powershell
+# Run as Administrator
+New-Item -ItemType Directory -Force "C:\ProgramData\CertDax"
+Move-Item certdax-agent-windows-amd64.exe "C:\ProgramData\CertDax\certdax-agent.exe"
+```
+
+**3. Create the configuration file**
+
+```powershell
+New-Item -ItemType Directory -Force "C:\ProgramData\CertDax"
+
+@"
+api_url: "https://certdax.example.com"
+agent_token: "your-agent-token-here"
+poll_interval: 30
+"@ | Set-Content "C:\ProgramData\CertDax\config.yaml"
+```
+
+The agent token is shown when you create the agent in the UI. You can also retrieve it from **Agents** → your agent → **Token**.
+
+**4. Install as a Windows Service**
+
+```powershell
+# Create the service
+New-Service -Name "CertDaxAgent" `
+            -DisplayName "CertDax Deploy Agent" `
+            -Description "Deploys certificates from CertDax to this machine" `
+            -BinaryPathName '"C:\ProgramData\CertDax\certdax-agent.exe" --config "C:\ProgramData\CertDax\config.yaml"' `
+            -StartupType Automatic
+
+# Start the service
+Start-Service CertDaxAgent
+
+# Verify it is running
+Get-Service CertDaxAgent
+```
+
+### Managing the Service
+
+```powershell
+# View service status
+Get-Service CertDaxAgent
+
+# Stop / Start / Restart
+Stop-Service CertDaxAgent
+Start-Service CertDaxAgent
+Restart-Service CertDaxAgent
+
+# View recent log output (Windows Event Log)
+Get-EventLog -LogName Application -Source CertDaxAgent -Newest 20
+
+# Uninstall
+Stop-Service CertDaxAgent
+Remove-Service CertDaxAgent           # PowerShell 6+ / Windows Server 2019+
+# Or on older systems:
+sc.exe delete CertDaxAgent
+```
+
+### Alternative Install Methods
+
+| Method | When to use |
+|--------|-------------|
+| **PowerShell one-liner** | Interactive install on a single machine — recommended |
+| **Windows Installer (.exe)** | UI-driven wizard; SmartScreen may warn, right-click → Properties → Unblock if needed |
+| **PowerShell script (.ps1)** | Scripted/RMM deployments (e.g. Intune, PDQ, Ansible) |
+| **Manual binary** | Air-gapped or policy-restricted environments |
+
+All options are available in the **Install** modal of each agent in the CertDax dashboard.
+
+### SmartScreen & Code Signing
+
+Binaries downloaded through the browser may be blocked by Windows SmartScreen. The recommended workaround is to use the **PowerShell one-liner**, which downloads the binary directly from PowerShell and bypasses the browser mark-of-the-web. Alternatively:
+
+- Install the **signing CA** as a Trusted Root on the target machine before downloading the binary — SmartScreen will then trust it automatically
+- Right-click the downloaded `.exe` → **Properties** → **Unblock** → **OK**
+
+### Certificate Deployment Path
+
+By default the agent deploys certificates to:
+
+```
+C:\ProgramData\CertDax\certs\
+```
+
+You can change this in the **Deploy path** field when creating the agent in the UI, or directly in `config.yaml`.
+
+
 
 The CertDax Kubernetes Operator runs in your cluster and synchronises certificates from CertDax into standard `kubernetes.io/tls` secrets. It supports Traefik IngressRoute, Nginx Ingress, and any controller that reads TLS secrets.
 

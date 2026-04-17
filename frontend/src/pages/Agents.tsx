@@ -45,6 +45,7 @@ export default function Agents() {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
   const [showSetup, setShowSetup] = useState(false);
+  const [guideOs, setGuideOs] = useState<'linux' | 'windows'>('linux');
   const [installShell, setInstallShell] = useState<'bash' | 'powershell'>('bash');
 
   // Windows agent state
@@ -334,9 +335,27 @@ export default function Agents() {
           </div>
 
           <div className="p-6">
+            {/* OS tabs */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => setGuideOs('linux')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${guideOs === 'linux' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Server className="w-4 h-4" />
+                Linux
+              </button>
+              <button
+                onClick={() => setGuideOs('windows')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${guideOs === 'windows' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}
+              >
+                <Monitor className="w-4 h-4" />
+                Windows
+              </button>
+            </div>
+
             {/* Steps */}
             <div className="space-y-8">
-              {/* Step 1 */}
+              {/* Step 1 — same for both OS */}
               <div className="flex gap-4">
                 <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
                   1
@@ -350,111 +369,159 @@ export default function Agents() {
                     Click <strong>"Add agent"</strong> above and fill in your server details.
                     After creation you'll receive an <strong>agent token</strong> and <strong>installation command</strong>.
                   </p>
+                  {guideOs === 'windows' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                      <div className="flex items-start gap-2">
+                        <ShieldCheck className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-blue-800">
+                          <strong>Windows tip:</strong> Select <strong>Windows</strong> as the OS type and choose a <strong>Self-Signed CA</strong> to code-sign the agent binary.
+                          This suppresses SmartScreen warnings. If you don't have a CA yet, create one under <strong>Self-Signed Certificates</strong> first.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                     <p className="text-xs text-amber-800">
                       <strong>Note:</strong> The token is only shown once.
-                      Save it securely or use the curl command directly.
+                      Save it securely or use the install command directly.
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Step 2 */}
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
-                  2
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
-                    <Download className="w-4 h-4 text-blue-500" />
-                    Install agent via curl
-                  </h3>
-                  <p className="text-sm text-slate-600 mb-3">
-                    After creation you'll get a one-line installation command. Run it on the target server:
-                  </p>
-                  <div className="bg-slate-900 rounded-lg p-4 mb-3">
-                    <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
+              {/* Step 2 — Linux */}
+              {guideOs === 'linux' && (
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
+                    2
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <Download className="w-4 h-4 text-blue-500" />
+                      Install agent via curl
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-3">
+                      After creation you'll get a one-line installation command. Run it on the target server:
+                    </p>
+                    <div className="bg-slate-900 rounded-lg p-4 mb-3">
+                      <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
 {`curl -fsSL -H "Authorization: Bearer <TOKEN>" \\
   ${window.location.origin}/api/agents/<ID>/install-script | sudo sh`}
-                    </pre>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    This script automatically downloads the correct binary for your architecture (amd64, arm64, arm, 386),
-                    creates the configuration and installs a systemd service.
-                  </p>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
-                  3
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-blue-500" />
-                    Manual installation (optional)
-                  </h3>
-                  <p className="text-sm text-slate-600 mb-3">
-                    If the curl command is not available, you can install the agent manually:
-                  </p>
-
-                  <div className="space-y-3">
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                      <p className="text-sm font-medium text-slate-700 mb-2">1. Download the binary</p>
-                      <p className="text-xs text-slate-500 mb-3">
-                        Choose the binary for your server's architecture:
-                      </p>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                        {(['amd64', 'arm64', 'arm', '386'] as const).map((arch) => (
-                          <button
-                            key={arch}
-                            onClick={async () => {
-                              try {
-                                const resp = await api.get(`/agents/install/binary/${arch}`, { responseType: 'blob' });
-                                const url = URL.createObjectURL(resp.data);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `certdax-agent-linux-${arch}`;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              } catch { /* ignore */ }
-                            }}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            {arch}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-xs text-slate-500 mb-2">
-                        Then copy it to the target server:
-                      </p>
-                      <div className="bg-slate-900 rounded p-3">
-                        <code className="text-xs text-emerald-400 font-mono">
-                          sudo cp certdax-agent-linux-amd64 /usr/local/bin/certdax-agent<br />
-                          sudo chmod +x /usr/local/bin/certdax-agent
-                        </code>
-                      </div>
+                      </pre>
                     </div>
+                    <p className="text-xs text-slate-500">
+                      This script automatically downloads the correct binary for your architecture (amd64, arm64, arm, 386),
+                      creates the configuration and installs a systemd service.
+                    </p>
+                  </div>
+                </div>
+              )}
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                      <p className="text-sm font-medium text-slate-700 mb-2">2. Create configuration</p>
-                      <div className="bg-slate-900 rounded p-3">
-                        <pre className="text-xs text-emerald-400 font-mono">{`sudo mkdir -p /etc/certdax
+              {/* Step 2 — Windows */}
+              {guideOs === 'windows' && (
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
+                    2
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <Terminal className="w-4 h-4 text-blue-500" />
+                      Install via PowerShell one-liner
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-3">
+                      Open the <strong>Install</strong> modal of your agent, copy the PowerShell command and run it in an <strong>elevated PowerShell</strong> session:
+                    </p>
+                    <div className="bg-slate-900 rounded-lg p-4 mb-3">
+                      <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
+{`iwr -useb "${window.location.origin}/api/agents/<ID>/install/windows-script?ca_id=<CA_ID>&token=<TOKEN>" | iex`}
+                      </pre>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-3">
+                      The script auto-detects your CPU architecture (x64 / ARM64 / x86), downloads the signed binary,
+                      writes the config to <code className="font-mono bg-slate-100 px-1 rounded">C:\ProgramData\CertDax\config.yaml</code> and
+                      registers a Windows Service that starts automatically.
+                    </p>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                      <p className="text-xs text-emerald-800">
+                        <strong>Why PowerShell?</strong> Downloading through PowerShell bypasses the browser mark-of-the-web,
+                        so SmartScreen won't block the binary. The actual command with your embedded token is shown in the <strong>Install</strong> modal.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3 — Linux: Manual install */}
+              {guideOs === 'linux' && (
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
+                    3
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-blue-500" />
+                      Manual installation (optional)
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-3">
+                      If the curl command is not available, you can install the agent manually:
+                    </p>
+
+                    <div className="space-y-3">
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-slate-700 mb-2">1. Download the binary</p>
+                        <p className="text-xs text-slate-500 mb-3">
+                          Choose the binary for your server's architecture:
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                          {(['amd64', 'arm64', 'arm', '386'] as const).map((arch) => (
+                            <button
+                              key={arch}
+                              onClick={async () => {
+                                try {
+                                  const resp = await api.get(`/agents/install/binary/${arch}`, { responseType: 'blob' });
+                                  const url = URL.createObjectURL(resp.data);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `certdax-agent-linux-${arch}`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                } catch { /* ignore */ }
+                              }}
+                              className="flex items-center justify-center gap-1.5 px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              {arch}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-slate-500 mb-2">
+                          Then copy it to the target server:
+                        </p>
+                        <div className="bg-slate-900 rounded p-3">
+                          <code className="text-xs text-emerald-400 font-mono">
+                            sudo cp certdax-agent-linux-amd64 /usr/local/bin/certdax-agent<br />
+                            sudo chmod +x /usr/local/bin/certdax-agent
+                          </code>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-slate-700 mb-2">2. Create configuration</p>
+                        <div className="bg-slate-900 rounded p-3">
+                          <pre className="text-xs text-emerald-400 font-mono">{`sudo mkdir -p /etc/certdax
 sudo cat > /etc/certdax/config.yaml << 'EOF'
 api_url: ${window.location.origin}/api
 token: <YOUR_AGENT_TOKEN>
 deploy_path: /etc/ssl/certs
 poll_interval: 60
 EOF`}</pre>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-                      <p className="text-sm font-medium text-slate-700 mb-2">3. Create systemd service</p>
-                      <div className="bg-slate-900 rounded p-3">
-                        <pre className="text-xs text-emerald-400 font-mono">{`sudo cat > /etc/systemd/system/certdax-agent.service << 'EOF'
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-slate-700 mb-2">3. Create systemd service</p>
+                        <div className="bg-slate-900 rounded p-3">
+                          <pre className="text-xs text-emerald-400 font-mono">{`sudo cat > /etc/systemd/system/certdax-agent.service << 'EOF'
 [Unit]
 Description=CertDax Agent
 After=network-online.target
@@ -471,16 +538,78 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now certdax-agent`}</pre>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Step 4 */}
+              {/* Step 3 — Windows: Alternative install methods */}
+              {guideOs === 'windows' && (
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
+                    3
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-blue-500" />
+                      Alternative install methods
+                    </h3>
+                    <p className="text-sm text-slate-600 mb-3">
+                      All options are available in the <strong>Install</strong> modal of each agent:
+                    </p>
+                    <div className="space-y-3">
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-slate-700 mb-1">Windows Installer wizard (.exe)</p>
+                        <p className="text-xs text-slate-500">
+                          GUI setup wizard — installs the binary to <code className="font-mono bg-slate-100 px-1 rounded">C:\Program Files\CertDax\</code>.
+                          SmartScreen may warn; right-click → Properties → Unblock if needed.
+                          Available in the <strong>Install</strong> modal under <em>Advanced options</em>.
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-slate-700 mb-1">PowerShell script (.ps1)</p>
+                        <p className="text-xs text-slate-500">
+                          Download the installer script for RMM/MDM tools (Intune, PDQ Deploy, Ansible).
+                          Available in the <strong>Install</strong> modal under <em>Advanced options</em>.
+                        </p>
+                      </div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                        <p className="text-sm font-medium text-slate-700 mb-2">Manual installation</p>
+                        <p className="text-xs text-slate-500 mb-3">
+                          Download the signed binary and install it yourself:
+                        </p>
+                        <div className="bg-slate-900 rounded p-3">
+                          <pre className="text-xs text-emerald-400 font-mono">{`# Run as Administrator in PowerShell
+New-Item -ItemType Directory -Force "C:\\ProgramData\\CertDax"
+# Move the downloaded .exe here:
+Move-Item certdax-agent.exe "C:\\ProgramData\\CertDax\\certdax-agent.exe"
+
+# Create config
+@"
+api_url: "${window.location.origin}/api"
+agent_token: "<YOUR_AGENT_TOKEN>"
+poll_interval: 30
+"@ | Set-Content "C:\\ProgramData\\CertDax\\config.yaml"
+
+# Register Windows Service
+New-Service -Name "CertDaxAgent" \`
+  -DisplayName "CertDax Deploy Agent" \`
+  -BinaryPathName '"C:\\ProgramData\\CertDax\\certdax-agent.exe" --config "C:\\ProgramData\\CertDax\\config.yaml"' \`
+  -StartupType Automatic
+Start-Service CertDaxAgent`}</pre>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Final step — assign certs (same for both) */}
               <div className="flex gap-4">
                 <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-bold text-sm">
-                  4
+                  {guideOs === 'linux' ? '4' : '4'}
                 </div>
                 <div className="flex-1">
                   <h3 className="text-base font-semibold text-slate-900 mb-2 flex items-center gap-2">
@@ -492,23 +621,43 @@ sudo systemctl enable --now certdax-agent`}</pre>
                     click <strong>"Manage"</strong> to assign certificates to the agent.
                     The agent automatically retrieves the certificates and deploys them to the configured path.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
-                      <Server className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
-                      <p className="text-xs font-medium text-emerald-800">Nginx / Apache</p>
-                      <p className="text-xs text-emerald-600">/etc/ssl/certs</p>
+                  {guideOs === 'linux' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                        <Server className="w-6 h-6 text-emerald-600 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-emerald-800">Nginx / Apache</p>
+                        <p className="text-xs text-emerald-600">/etc/ssl/certs</p>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                        <Server className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-blue-800">Postfix / Dovecot</p>
+                        <p className="text-xs text-blue-600">/etc/ssl/mail</p>
+                      </div>
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
+                        <Server className="w-6 h-6 text-purple-600 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-purple-800">Custom application</p>
+                        <p className="text-xs text-purple-600">/opt/app/certs</p>
+                      </div>
                     </div>
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                      <Server className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                      <p className="text-xs font-medium text-blue-800">Postfix / Dovecot</p>
-                      <p className="text-xs text-blue-600">/etc/ssl/mail</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                        <Monitor className="w-6 h-6 text-blue-600 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-blue-800">IIS / Web apps</p>
+                        <p className="text-xs text-blue-600 font-mono">C:\ProgramData\CertDax\certs</p>
+                      </div>
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-center">
+                        <Monitor className="w-6 h-6 text-indigo-600 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-indigo-800">Exchange / SMTP</p>
+                        <p className="text-xs text-indigo-600 font-mono">C:\ProgramData\CertDax\certs</p>
+                      </div>
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
+                        <Monitor className="w-6 h-6 text-purple-600 mx-auto mb-1" />
+                        <p className="text-xs font-medium text-purple-800">Custom application</p>
+                        <p className="text-xs text-purple-600 font-mono">Configurable path</p>
+                      </div>
                     </div>
-                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-center">
-                      <Server className="w-6 h-6 text-purple-600 mx-auto mb-1" />
-                      <p className="text-xs font-medium text-purple-800">Custom application</p>
-                      <p className="text-xs text-purple-600">/opt/app/certs</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -517,7 +666,10 @@ sudo systemctl enable --now certdax-agent`}</pre>
             <div className="mt-8 pt-6 border-t border-slate-200">
               <h3 className="text-sm font-semibold text-slate-700 mb-3">Supported architectures</h3>
               <div className="flex flex-wrap gap-2">
-                {['linux/amd64', 'linux/arm64', 'linux/arm', 'linux/386'].map((arch) => (
+                {(guideOs === 'linux'
+                  ? ['linux/amd64', 'linux/arm64', 'linux/arm', 'linux/386']
+                  : ['windows/amd64 (x64)', 'windows/arm64', 'windows/386 (x86)']
+                ).map((arch) => (
                   <span key={arch} className="px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-mono font-medium text-slate-700">
                     {arch}
                   </span>
