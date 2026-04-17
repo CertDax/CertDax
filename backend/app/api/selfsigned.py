@@ -139,7 +139,9 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
         if req.custom_oids:
             for e in req.custom_oids:
                 if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
-                    eku_list.append(x509.ObjectIdentifier(e.oid))
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in eku_list:
+                        eku_list.append(oid)
         builder = builder.add_extension(
             x509.ExtendedKeyUsage(eku_list), critical=False,
         )
@@ -306,7 +308,9 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
         if req.custom_oids:
             for e in req.custom_oids:
                 if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
-                    eku_list.append(x509.ObjectIdentifier(e.oid))
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in eku_list:
+                        eku_list.append(oid)
         builder = builder.add_extension(
             x509.ExtendedKeyUsage(eku_list), critical=False,
         )

@@ -375,27 +375,68 @@ export default function SelfSignedDetail() {
         </div>
       )}
 
-      {/* OIDs */}
+      {/* Extended Key Usage / OIDs */}
       {(() => {
         const customOids: OidEntry[] = cert.custom_oids ? JSON.parse(cert.custom_oids) : [];
-        return customOids.length > 0 ? (
+
+        // Effective EKU: always includes the backend defaults, plus any custom OIDs.
+        // This mirrors the logic in selfsigned.py so the displayed EKU matches the cert.
+        type EkuEntry = { oid: string; label: string; custom?: boolean };
+        const known: Record<string, string> = {
+          '1.3.6.1.5.5.7.3.1': 'serverAuth',
+          '1.3.6.1.5.5.7.3.2': 'clientAuth',
+          '1.3.6.1.5.5.7.3.3': 'codeSigning',
+          '1.3.6.1.5.5.7.3.4': 'emailProtection',
+          '1.3.6.1.5.5.7.3.8': 'timeStamping',
+          '1.3.6.1.5.5.7.3.9': 'OCSPSigning',
+        };
+
+        const effectiveEku: EkuEntry[] = cert.is_ca
+          ? [
+              { oid: '1.3.6.1.5.5.7.3.3', label: 'codeSigning' },
+              { oid: '1.3.6.1.5.5.7.3.1', label: 'serverAuth' },
+              { oid: '1.3.6.1.5.5.7.3.2', label: 'clientAuth' },
+            ]
+          : [
+              { oid: '1.3.6.1.5.5.7.3.1', label: 'serverAuth' },
+              { oid: '1.3.6.1.5.5.7.3.2', label: 'clientAuth' },
+            ];
+
+        const seenOids = new Set(effectiveEku.map((e) => e.oid));
+
+        // Append custom OIDs that are not already in the defaults
+        for (const o of customOids) {
+          if (!seenOids.has(o.oid)) {
+            seenOids.add(o.oid);
+            effectiveEku.push({
+              oid: o.oid,
+              label: known[o.oid] ?? o.value ?? o.oid,
+              custom: true,
+            });
+          }
+        }
+
+        return (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Tag className="w-5 h-5" />
-              Object Identifiers (OID)
+              Extended Key Usage (OID)
             </h2>
             <div className="space-y-2">
-              {customOids.map((oid, i) => (
+              {effectiveEku.map((entry, i) => (
                 <div key={i} className="flex items-center gap-3 text-sm">
                   <span className="font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                    {oid.oid}
+                    {entry.oid}
                   </span>
-                  <span className="text-slate-600">{oid.value}</span>
+                  <span className="text-slate-600">{entry.label}</span>
+                  {!entry.custom && (
+                    <span className="text-xs text-slate-400 italic">default</span>
+                  )}
                 </div>
               ))}
             </div>
           </div>
-        ) : null;
+        );
       })()}
 
       {/* Signed Certificates (for CA certs) */}
