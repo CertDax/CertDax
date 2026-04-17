@@ -167,7 +167,9 @@ def download_agent_binary(
             raise HTTPException(status_code=401, detail="Invalid token")
 
     binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
-    binary_path = os.path.join(binary_dir, f"certdax-agent-linux-{arch}")
+    binary_path = os.path.normpath(os.path.join(binary_dir, f"certdax-agent-linux-{arch}"))
+    if not binary_path.startswith(binary_dir + os.sep) and binary_path != binary_dir:
+        raise HTTPException(status_code=400, detail="Invalid path")
 
     if not os.path.isfile(binary_path):
         raise HTTPException(status_code=404, detail=f"Binary not found for architecture: {arch}")
