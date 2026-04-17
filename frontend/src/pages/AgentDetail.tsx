@@ -18,6 +18,9 @@ import {
   WifiOff,
   Pencil,
   FolderTree,
+  Download,
+  Monitor,
+  ChevronRight,
 } from 'lucide-react';
 import api from '../services/api';
 import type { AgentDetail, Certificate, SelfSignedCertificate } from '../types';
@@ -40,6 +43,14 @@ export default function AgentDetailPage() {
   const [newToken, setNewToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
+
+  // Windows installer state
+  interface SelfSignedCA { id: number; common_name: string }
+  const [availableCAs, setAvailableCAs] = useState<SelfSignedCA[]>([]);
+  const [loadingCAs, setLoadingCAs] = useState(false);
+  const [modalCaId, setModalCaId] = useState<number | ''>('');
+  const [downloadingInstaller, setDownloadingInstaller] = useState(false);
+  const [downloadingScript, setDownloadingScript] = useState(false);
 
   // Edit settings
   const [editingSettings, setEditingSettings] = useState(false);
@@ -139,7 +150,54 @@ export default function AgentDetailPage() {
   const handleRegenerateToken = async () => {
     const { data } = await api.post(`/agents/${id}/regenerate-token`);
     setNewToken(data.agent_token);
+    if (agent?.os_type === 'windows' && availableCAs.length === 0) {
+      setLoadingCAs(true);
+      try {
+        const { data: caData } = await api.get('/self-signed');
+        setAvailableCAs((caData as any[]).filter((c) => c.is_ca === true));
+      } finally {
+        setLoadingCAs(false);
+      }
+    }
     setShowInstallModal(true);
+  };
+
+  const downloadWindowsInstaller = async () => {
+    if (!modalCaId) return;
+    setDownloadingInstaller(true);
+    try {
+      const resp = await api.get(
+        `/agents/${id}/install/windows-installer?ca_id=${modalCaId}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certdax-agent-${(agent?.name ?? id)?.toString().replace(/\s+/g, '_')}-setup.exe`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingInstaller(false);
+    }
+  };
+
+  const downloadWindowsScript = async () => {
+    if (!modalCaId) return;
+    setDownloadingScript(true);
+    try {
+      const resp = await api.get(
+        `/agents/${id}/install/windows-script?ca_id=${modalCaId}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `install-certdax-agent-${(agent?.name ?? id)?.toString().replace(/\s+/g, '_')}.ps1`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingScript(false);
+    }
   };
 
   const copyToClipboard = (text: string, key: string) => {
@@ -196,6 +254,21 @@ export default function AgentDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-900">{agent.name}</h1>
             <StatusBadge status={agent.status} />
+            {agent.os_type === 'windows' ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path d="M0 3.449 9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+                </svg>
+                Windows
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-medium">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489.117.779.567 1.563 1.182 2.114.267.237.537.463.812.683-1.148 1.7-1.955 3.955-1.612 6.034.232 1.377.91 2.576 2.053 3.278 1.161.71 2.495.83 3.875.556 1.68-.338 3.437-1.41 4.968-2.897 1.532-1.488 2.864-3.386 3.684-5.523.819-2.137 1.082-4.547.568-6.827-.52-2.292-1.797-4.432-3.688-5.796-.94-.667-2.001-1.078-3.03-1.101zm1.032 1.714c.774.05 1.515.358 2.307.926 1.679 1.19 2.817 3.097 3.289 5.14.457 2.014.196 4.176-.534 6.115-.73 1.94-1.964 3.693-3.378 5.064-1.414 1.37-3.028 2.314-4.495 2.616-1.122.226-2.196.116-3.092-.43-.905-.552-1.447-1.519-1.624-2.618-.285-1.696.306-3.655 1.279-5.199.256-.408.52-.793.793-1.154-.028-.026-.055-.052-.082-.08-.476-.478-.899-.976-1.218-1.498-.32-.52-.55-1.057-.59-1.598-.04-.54.088-1.083.366-1.569.279-.485.716-.904 1.285-1.207.57-.303 1.27-.483 2.075-.483.8 0 1.594.19 2.32.555.726.364 1.374.902 1.855 1.573.48.67.778 1.465.806 2.302.028.836-.203 1.71-.68 2.479-.477.77-1.189 1.429-2.062 1.85-.87.42-1.879.604-2.9.484-.023-.003-.046-.006-.07-.01.09.278.226.543.41.789.183.245.407.472.671.68.264.207.568.394.906.55.338.155.71.28 1.108.358.398.079.824.108 1.265.08.44-.028.896-.112 1.355-.265.46-.153.923-.377 1.372-.68.45-.302.884-.676 1.29-1.123.405-.447.78-.97 1.1-1.57.32-.6.584-1.277.773-2.024.19-.747.302-1.563.302-2.427 0-.863-.112-1.744-.355-2.6-.243-.855-.621-1.683-1.14-2.43-.52-.748-1.186-1.415-1.99-1.929-.804-.514-1.748-.877-2.806-.952zm-3.29 5.63c.19 0 .351.038.476.106.125.069.213.164.264.278.05.114.062.242.033.37-.029.128-.1.254-.208.362-.108.108-.255.2-.434.262-.18.062-.39.093-.617.093-.228 0-.427-.03-.594-.09-.167-.06-.3-.147-.39-.254-.091-.107-.138-.229-.138-.354 0-.172.086-.338.254-.47.168-.132.41-.21.697-.21z"/>
+                </svg>
+                Linux
+              </span>
+            )}
           </div>
           <p className="text-slate-500 text-sm">{agent.hostname}</p>
         </div>
@@ -616,100 +689,157 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Install modal */}
-      {showInstallModal && newToken && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Installation command
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Run this command on {agent.hostname}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowInstallModal(false);
-                  setNewToken('');
-                  setShowToken(false);
-                }}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  <Terminal className="w-4 h-4 inline mr-1" />
-                  Installation command
-                </label>
-                <div className="bg-slate-900 rounded-lg p-4 relative">
-                  <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
-                    {getCurlCommand()}
-                  </pre>
-                  <button
-                    onClick={() => copyToClipboard(getCurlCommand(), 'curl')}
-                    className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700"
-                  >
-                    {copied === 'curl' ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
+      {showInstallModal && newToken && (() => {
+        const isWindows = agent.os_type === 'windows';
+        const closeModal = () => { setShowInstallModal(false); setNewToken(''); setShowToken(false); setModalCaId(''); };
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Install agent: {agent.name}</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {isWindows ? 'Windows agent installer' : `Run on ${agent.hostname}`}
+                  </p>
                 </div>
+                <button onClick={closeModal} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Agent Token
-                </label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-mono text-slate-900 overflow-x-auto">
-                    {showToken ? newToken : '••••••••••••••••••••••••••••••••'}
-                  </code>
-                  <button
-                    onClick={() => setShowToken(!showToken)}
-                    className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-                  >
-                    {showToken ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(newToken, 'token')}
-                    className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-                  >
-                    {copied === 'token' ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
+              <div className="p-6 space-y-5">
+                {isWindows ? (
+                  <>
+                    {/* Windows info banner */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start gap-2">
+                        <Monitor className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-blue-700">
+                          The installer will trust the CA cert, install the signed agent binary, write the config, and register it as a Windows service.
+                        </p>
+                      </div>
+                    </div>
 
-            <div className="p-6 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowInstallModal(false);
-                  setNewToken('');
-                  setShowToken(false);
-                }}
-                className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium"
-              >
-                Close
-              </button>
+                    {/* CA selector */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">
+                        <ShieldCheck className="w-4 h-4 inline mr-1" />Signing CA
+                      </label>
+                      <p className="text-xs text-slate-500 mb-2">Select the CA used to sign the agent binary.</p>
+                      {loadingCAs ? (
+                        <p className="text-sm text-slate-500">Loading CAs…</p>
+                      ) : availableCAs.length === 0 ? (
+                        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                          No CA certificates found. Create one under <strong>Self-Signed Certificates</strong>.
+                        </p>
+                      ) : (
+                        <select
+                          value={modalCaId}
+                          onChange={(e) => setModalCaId(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                        >
+                          <option value="">Select a CA…</option>
+                          {availableCAs.map((ca) => (
+                            <option key={ca.id} value={ca.id}>{ca.common_name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Primary: NSIS installer */}
+                    <div className="border-2 border-emerald-200 bg-emerald-50 rounded-xl p-5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-emerald-100 rounded-lg flex-shrink-0">
+                          <Download className="w-5 h-5 text-emerald-700" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-900">Windows Installer (.exe)</p>
+                          <p className="text-xs text-emerald-700 mt-0.5">
+                            Setup wizard — installs CA cert, signed binary, config, and Windows service in one click.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={downloadWindowsInstaller}
+                        disabled={!modalCaId || downloadingInstaller}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        {downloadingInstaller ? 'Building installer…' : 'Download setup.exe'}
+                      </button>
+                      {!modalCaId && (
+                        <p className="text-xs text-emerald-700 mt-2 text-center">Select a signing CA above to enable download</p>
+                      )}
+                    </div>
+
+                    {/* Advanced options */}
+                    <details className="group">
+                      <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700 select-none list-none flex items-center gap-1">
+                        <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+                        Advanced / scripted install
+                      </summary>
+                      <div className="mt-3 border border-slate-200 rounded-lg p-4">
+                        <p className="text-xs font-semibold text-slate-700 mb-1">PowerShell unattended installer</p>
+                        <button
+                          onClick={downloadWindowsScript}
+                          disabled={!modalCaId || downloadingScript}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          {downloadingScript ? 'Generating…' : 'Download installer.ps1'}
+                        </button>
+                      </div>
+                    </details>
+                  </>
+                ) : (
+                  <>
+                    {/* Linux install command */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        <Terminal className="w-4 h-4 inline mr-1" />
+                        Installation command
+                      </label>
+                      <div className="bg-slate-900 rounded-lg p-4 relative">
+                        <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
+                          {getCurlCommand()}
+                        </pre>
+                        <button
+                          onClick={() => copyToClipboard(getCurlCommand(), 'curl')}
+                          className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700"
+                        >
+                          {copied === 'curl' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Token */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Agent Token</label>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-mono text-slate-900 overflow-x-auto">
+                          {showToken ? newToken : '••••••••••••••••••••••••••••••••'}
+                        </code>
+                        <button onClick={() => setShowToken(!showToken)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+                          {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => copyToClipboard(newToken, 'token')} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+                          {copied === 'token' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-slate-200 flex justify-end">
+                <button onClick={closeModal} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium">
+                  Close
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
