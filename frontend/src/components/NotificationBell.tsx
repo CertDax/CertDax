@@ -41,8 +41,8 @@ export default function NotificationBell() {
   // Show custom permission prompt after 2s if not yet answered
   useEffect(() => {
     if ('Notification' in window && window.Notification.permission === 'default') {
-      const dismissed = localStorage.getItem('certdax-notif-prompt-dismissed');
-      if (!dismissed) {
+      const choice = localStorage.getItem('certdax-notif-prompt-choice');
+      if (!choice) {
         const timer = setTimeout(() => setShowPermissionPrompt(true), 2000);
         return () => clearTimeout(timer);
       }
@@ -53,14 +53,14 @@ export default function NotificationBell() {
     if ('Notification' in window) {
       window.Notification.requestPermission().then(() => {
         setShowPermissionPrompt(false);
-        localStorage.setItem('certdax-notif-prompt-dismissed', 'true');
+        localStorage.setItem('certdax-notif-prompt-choice', 'allowed');
       });
     }
   };
 
   const handleDismissPrompt = () => {
     setShowPermissionPrompt(false);
-    localStorage.setItem('certdax-notif-prompt-dismissed', 'true');
+    localStorage.setItem('certdax-notif-prompt-choice', 'dismissed');
   };
 
   const addToast = useCallback((notif: Notification) => {
