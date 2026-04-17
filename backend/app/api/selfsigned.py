@@ -61,6 +61,10 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
         name_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, req.locality))
     if req.custom_oids:
         for oid_entry in req.custom_oids:
+            # EKU OIDs (1.3.6.1.5.5.7.3.*) must NOT be added to the Subject DN —
+            # they belong in the ExtendedKeyUsage extension only.
+            if oid_entry.oid.startswith("1.3.6.1.5.5.7.3."):
+                continue
             oid_obj = x509.ObjectIdentifier(oid_entry.oid)
             name_attrs.append(x509.NameAttribute(oid_obj, oid_entry.value))
 
@@ -220,6 +224,10 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
         name_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, req.locality))
     if req.custom_oids:
         for oid_entry in req.custom_oids:
+            # EKU OIDs (1.3.6.1.5.5.7.3.*) must NOT be added to the Subject DN —
+            # they belong in the ExtendedKeyUsage extension only.
+            if oid_entry.oid.startswith("1.3.6.1.5.5.7.3."):
+                continue
             oid_obj = x509.ObjectIdentifier(oid_entry.oid)
             name_attrs.append(x509.NameAttribute(oid_obj, oid_entry.value))
 
