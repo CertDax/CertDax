@@ -328,53 +328,57 @@ export default function AgentDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
-        <Link
-          to="/agents"
-          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-900">{agent.name}</h1>
-            <StatusBadge status={agent.status} />
-            {agent.os_type === 'windows' ? (
-              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
-                  <path d="M0 3.449 9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
-                </svg>
-                Windows
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-medium">
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
-                  <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489.117.779.567 1.563 1.182 2.114.267.237.537.463.812.683-1.148 1.7-1.955 3.955-1.612 6.034.232 1.377.91 2.576 2.053 3.278 1.161.71 2.495.83 3.875.556 1.68-.338 3.437-1.41 4.968-2.897 1.532-1.488 2.864-3.386 3.684-5.523.819-2.137 1.082-4.547.568-6.827-.52-2.292-1.797-4.432-3.688-5.796-.94-.667-2.001-1.078-3.03-1.101zm1.032 1.714c.774.05 1.515.358 2.307.926 1.679 1.19 2.817 3.097 3.289 5.14.457 2.014.196 4.176-.534 6.115-.73 1.94-1.964 3.693-3.378 5.064-1.414 1.37-3.028 2.314-4.495 2.616-1.122.226-2.196.116-3.092-.43-.905-.552-1.447-1.519-1.624-2.618-.285-1.696.306-3.655 1.279-5.199.256-.408.52-.793.793-1.154-.028-.026-.055-.052-.082-.08-.476-.478-.899-.976-1.218-1.498-.32-.52-.55-1.057-.59-1.598-.04-.54.088-1.083.366-1.569.279-.485.716-.904 1.285-1.207.57-.303 1.27-.483 2.075-.483.8 0 1.594.19 2.32.555.726.364 1.374.902 1.855 1.573.48.67.778 1.465.806 2.302.028.836-.203 1.71-.68 2.479-.477.77-1.189 1.429-2.062 1.85-.87.42-1.879.604-2.9.484-.023-.003-.046-.006-.07-.01.09.278.226.543.41.789.183.245.407.472.671.68.264.207.568.394.906.55.338.155.71.28 1.108.358.398.079.824.108 1.265.08.44-.028.896-.112 1.355-.265.46-.153.923-.377 1.372-.68.45-.302.884-.676 1.29-1.123.405-.447.78-.97 1.1-1.57.32-.6.584-1.277.773-2.024.19-.747.302-1.563.302-2.427 0-.863-.112-1.744-.355-2.6-.243-.855-.621-1.683-1.14-2.43-.52-.748-1.186-1.415-1.99-1.929-.804-.514-1.748-.877-2.806-.952zm-3.29 5.63c.19 0 .351.038.476.106.125.069.213.164.264.278.05.114.062.242.033.37-.029.128-.1.254-.208.362-.108.108-.255.2-.434.262-.18.062-.39.093-.617.093-.228 0-.427-.03-.594-.09-.167-.06-.3-.147-.39-.254-.091-.107-.138-.229-.138-.354 0-.172.086-.338.254-.47.168-.132.41-.21.697-.21z"/>
-                </svg>
-                Linux
+      <div className="mb-6">
+        <div className="flex items-start gap-3">
+          <Link
+            to="/agents"
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg mt-0.5 shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold text-slate-900">{agent.name}</h1>
+              <StatusBadge status={agent.status} />
+              {agent.os_type === 'windows' ? (
+                <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                    <path d="M0 3.449 9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+                  </svg>
+                  Windows
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-medium">
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                    <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489.117.779.567 1.563 1.182 2.114.267.237.537.463.812.683-1.148 1.7-1.955 3.955-1.612 6.034.232 1.377.91 2.576 2.053 3.278 1.161.71 2.495.83 3.875.556 1.68-.338 3.437-1.41 4.968-2.897 1.532-1.488 2.864-3.386 3.684-5.523.819-2.137 1.082-4.547.568-6.827-.52-2.292-1.797-4.432-3.688-5.796-.94-.667-2.001-1.078-3.03-1.101zm1.032 1.714c.774.05 1.515.358 2.307.926 1.679 1.19 2.817 3.097 3.289 5.14.457 2.014.196 4.176-.534 6.115-.73 1.94-1.964 3.693-3.378 5.064-1.414 1.37-3.028 2.314-4.495 2.616-1.122.226-2.196.116-3.092-.43-.905-.552-1.447-1.519-1.624-2.618-.285-1.696.306-3.655 1.279-5.199.256-.408.52-.793.793-1.154-.028-.026-.055-.052-.082-.08-.476-.478-.899-.976-1.218-1.498-.32-.52-.55-1.057-.59-1.598-.04-.54.088-1.083.366-1.569.279-.485.716-.904 1.285-1.207.57-.303 1.27-.483 2.075-.483.8 0 1.594.19 2.32.555.726.364 1.374.902 1.855 1.573.48.67.778 1.465.806 2.302.028.836-.203 1.71-.68 2.479-.477.77-1.189 1.429-2.062 1.85-.87.42-1.879.604-2.9.484-.023-.003-.046-.006-.07-.01.09.278.226.543.41.789.183.245.407.472.671.68.264.207.568.394.906.55.338.155.71.28 1.108.358.398.079.824.108 1.265.08.44-.028.896-.112 1.355-.265.46-.153.923-.377 1.372-.68.45-.302.884-.676 1.29-1.123.405-.447.78-.97 1.1-1.57.32-.6.584-1.277.773-2.024.19-.747.302-1.563.302-2.427 0-.863-.112-1.744-.355-2.6-.243-.855-.621-1.683-1.14-2.43-.52-.748-1.186-1.415-1.99-1.929-.804-.514-1.748-.877-2.806-.952zm-3.29 5.63c.19 0 .351.038.476.106.125.069.213.164.264.278.05.114.062.242.033.37-.029.128-.1.254-.208.362-.108.108-.255.2-.434.262-.18.062-.39.093-.617.093-.228 0-.427-.03-.594-.09-.167-.06-.3-.147-.39-.254-.091-.107-.138-.229-.138-.354 0-.172.086-.338.254-.47.168-.132.41-.21.697-.21z"/>
+                  </svg>
+                  Linux
+                </span>
+              )}
+            </div>
+            <p className="text-slate-500 text-sm">{agent.hostname}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 mt-3 ml-11">
+          <button
+            onClick={() => setShowLogsModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium"
+          >
+            <ScrollText className="w-4 h-4" />
+            Live Logs
+            {(agent.recent_logs?.length || 0) > 0 && (
+              <span className="inline-flex items-center justify-center w-5 h-5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+                {agent.recent_logs.length > 99 ? '99+' : agent.recent_logs.length}
               </span>
             )}
-          </div>
-          <p className="text-slate-500 text-sm">{agent.hostname}</p>
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-3 py-1.5 text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium"
+          >
+            Delete
+          </button>
         </div>
-        <button
-          onClick={() => setShowLogsModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium"
-        >
-          <ScrollText className="w-4 h-4" />
-          Live Logs
-          {(agent.recent_logs?.length || 0) > 0 && (
-            <span className="inline-flex items-center justify-center w-5 h-5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
-              {agent.recent_logs.length > 99 ? '99+' : agent.recent_logs.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={handleDelete}
-          className="px-4 py-2 text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium"
-        >
-          Delete
-        </button>
       </div>
 
       {/* Info cards */}
@@ -424,7 +428,7 @@ export default function AgentDetailPage() {
       </div>
 
       {/* Deployment stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <p className="text-xs text-slate-500 uppercase font-medium mb-1">
             Total deployments
