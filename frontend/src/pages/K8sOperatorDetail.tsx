@@ -68,6 +68,7 @@ export default function K8sOperatorDetailPage() {
   const [availableCerts, setAvailableCerts] = useState<(Certificate | SelfSignedCertificate)[]>([]);
   const [deployments, setDeployments] = useState<{ id: number; certificate_id: number; certificate_type: string; secret_name: string; namespace: string }[]>([]);
   const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   const fetchOperator = async () => {
     try {
@@ -271,6 +272,18 @@ export default function K8sOperatorDetailPage() {
           >
             <RefreshCw className="w-4 h-4" />
             Regenerate token
+          </button>
+          <button
+            onClick={() => setShowLogsModal(true)}
+            className="flex items-center gap-1.5 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium transition-colors"
+          >
+            <ScrollText className="w-4 h-4" />
+            Live Logs
+            {(operator.recent_logs?.length || 0) > 0 && (
+              <span className="inline-flex items-center justify-center w-5 h-5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+                {(operator.recent_logs?.length || 0) > 99 ? '99+' : operator.recent_logs?.length}
+              </span>
+            )}
           </button>
           <button
             onClick={handleDelete}
@@ -672,65 +685,72 @@ kubectl get cdxcert`}
         </div>
       )}
 
-      {/* Live logs */}
-      <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-700 mb-6 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700">
-          <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-            <ScrollText className="w-4 h-4 text-emerald-400" />
-            Live Logs
-            <span className="text-xs text-slate-500">
-              ({operator.recent_logs?.length || 0} lines)
-            </span>
-          </h2>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoScroll}
-                onChange={(e) => setAutoScroll(e.target.checked)}
-                className="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
-              />
-              Auto-scroll
-            </label>
-            <button
-              onClick={() => {
-                const text = (operator.recent_logs || []).join('\n');
-                copyToClipboard(text, 'logs');
-              }}
-              className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+      {/* Live Logs modal */}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700 flex-shrink-0">
+              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <ScrollText className="w-4 h-4 text-emerald-400" />
+                Live Logs — {operator.name}
+                <span className="text-xs text-slate-500">
+                  ({operator.recent_logs?.length || 0} lines)
+                </span>
+              </h2>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoScroll}
+                    onChange={(e) => setAutoScroll(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                  />
+                  Auto-scroll
+                </label>
+                <button
+                  onClick={() => {
+                    const text = (operator.recent_logs || []).join('\n');
+                    copyToClipboard(text, 'logs');
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                >
+                  {copied === 'logs' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy
+                </button>
+                <button
+                  onClick={() => setShowLogsModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div
+              ref={logContainerRef}
+              className="overflow-auto flex-1 p-4 font-mono text-xs leading-5"
             >
-              {copied === 'logs' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              Copy
-            </button>
+              {operator.recent_logs && operator.recent_logs.length > 0 ? (
+                operator.recent_logs.map((line, i) => {
+                  const isError = /\bERROR\b/i.test(line);
+                  const isWarn = /\bWARN/i.test(line);
+                  return (
+                    <div
+                      key={i}
+                      className={isError ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-slate-300'}
+                    >
+                      {line}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-slate-500 text-center py-12">
+                  No logs available yet. Logs appear after the first heartbeat.
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <div ref={logContainerRef} className="overflow-auto max-h-96 p-4 font-mono text-xs leading-5">
-          {operator.recent_logs && operator.recent_logs.length > 0 ? (
-            operator.recent_logs.map((line, i) => {
-              const isError = /\bERROR\b/i.test(line);
-              const isWarn = /\bWARN/i.test(line);
-              return (
-                <div
-                  key={i}
-                  className={
-                    isError
-                      ? 'text-red-400'
-                      : isWarn
-                        ? 'text-amber-400'
-                        : 'text-slate-300'
-                  }
-                >
-                  {line}
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-slate-500 text-center py-8">
-              No logs available yet. Logs appear after the first heartbeat.
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Deployed Certificates */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
