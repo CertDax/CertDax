@@ -74,6 +74,10 @@ export default function RequestCertificate() {
     setCustomOids(updated);
   };
 
+  // Detect if selected CA is Let's Encrypt (does not support subject fields or custom OIDs)
+  const selectedCa = cas.find((ca) => ca.id === caId);
+  const isLetsEncrypt = selectedCa ? selectedCa.directory_url.includes('letsencrypt.org') : false;
+
   const buildPayload = () => {
     const validDomains = domains.filter((d) => d.trim());
     const validOids = customOids.filter((o) => o.oid.trim() && o.value.trim());
@@ -413,6 +417,7 @@ export default function RequestCertificate() {
             )}
 
             {/* Subject Information */}
+            {!isLetsEncrypt && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
@@ -488,8 +493,10 @@ export default function RequestCertificate() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Custom OIDs */}
+            {!isLetsEncrypt && (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
@@ -548,6 +555,7 @@ export default function RequestCertificate() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Auto Renew */}
             <div className="space-y-3">
