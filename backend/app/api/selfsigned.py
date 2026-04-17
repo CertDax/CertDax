@@ -492,6 +492,40 @@ def create_self_signed(
     return resp
 
 
+@router.patch("/{cert_id}", response_model=SelfSignedResponse, summary="Update certificate settings")
+def update_self_signed(
+    cert_id: int,
+    auto_renew: bool | None = Query(default=None),
+    renewal_threshold_days: int | None = Query(default=None, ge=1, le=365),
+    clear_threshold: bool = Query(default=False, description="Set renewal_threshold_days to null (use system default)"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update mutable settings of an existing certificate (auto-renewal on/off, threshold)."""
+    cert = db.query(SelfSignedCertificate).filter(
+        SelfSignedCertificate.id == cert_id,
+        SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed")),
+    ).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+
+    if auto_renew is not None:
+        cert.auto_renew = auto_renew
+    if clear_threshold:
+        cert.renewal_threshold_days = None
+    elif renewal_threshold_days is not None:
+        cert.renewal_threshold_days = renewal_threshold_days
+    cert.modified_by_user_id = user.id
+    cert.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cert)
+
+    resp = SelfSignedResponse.model_validate(cert)
+    resp.created_by_username = _get_username(db, cert.created_by_user_id)
+    resp.modified_by_username = _get_username(db, cert.modified_by_user_id)
+    return resp
+
+
 @router.delete("/{cert_id}", summary="Delete a self-signed certificate")
 def delete_self_signed(
     cert_id: int,
