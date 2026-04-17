@@ -32,6 +32,8 @@ class DeploymentTarget(Base):
     agent_arch: Mapped[str | None] = mapped_column(String(50), nullable=True)
     agent_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     agent_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    os_type: Mapped[str] = mapped_column(String(10), default="linux")  # linux or windows
+    recent_logs: Mapped[str | None] = mapped_column(Text, nullable=True)
     group_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("groups.id"), nullable=True
     )

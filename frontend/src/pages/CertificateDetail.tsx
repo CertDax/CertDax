@@ -45,12 +45,34 @@ export default function CertificateDetail() {
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [parsedDetails, setParsedDetails] = useState<any>(null);
   const [parsedLoading, setParsedLoading] = useState(false);
+  const [editingAutoRenew, setEditingAutoRenew] = useState(false);
+  const [autoRenewForm, setAutoRenewForm] = useState({ auto_renew: false, renewal_threshold_days: '' });
+  const [savingAutoRenew, setSavingAutoRenew] = useState(false);
 
   const fetchCert = () => {
     api.get(`/certificates/${id}`).then((res) => {
       setCert(res.data);
       setLoading(false);
     });
+  };
+
+  const handleSaveAutoRenew = async () => {
+    setSavingAutoRenew(true);
+    try {
+      const params = new URLSearchParams({ auto_renew: String(autoRenewForm.auto_renew) });
+      if (autoRenewForm.auto_renew && autoRenewForm.renewal_threshold_days) {
+        params.set('renewal_threshold_days', autoRenewForm.renewal_threshold_days);
+      } else if (autoRenewForm.auto_renew && !autoRenewForm.renewal_threshold_days) {
+        params.set('clear_threshold', 'true');
+      }
+      await api.patch(`/certificates/${id}?${params}`);
+      setEditingAutoRenew(false);
+      fetchCert();
+    } catch {
+      // error handling via interceptor
+    } finally {
+      setSavingAutoRenew(false);
+    }
   };
 
   const fetchParsedDetails = () => {
@@ -190,21 +212,23 @@ export default function CertificateDetail() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-4 mb-8">
-        <Link
-          to="/certificates"
-          className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-slate-600" />
-        </Link>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-slate-900 truncate">{cert.common_name}</h1>
-            <span className="text-sm text-slate-400 font-mono">ID: {cert.id}</span>
+      <div className="mb-8">
+        <div className="flex items-start gap-4">
+          <Link
+            to="/certificates"
+            className="p-2 rounded-lg hover:bg-slate-200 transition-colors mt-1 flex-shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-slate-900 break-all">{cert.common_name}</h1>
+              <span className="text-sm text-slate-400 font-mono">ID: {cert.id}</span>
+            </div>
+            <p className="text-slate-500 mt-1">{cert.ca_name || 'Unknown CA'}</p>
           </div>
-          <p className="text-slate-500 mt-1">{cert.ca_name || 'Unknown CA'}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 mt-4 ml-11">
           <button
             onClick={handleRenew}
             disabled={renewing || isProcessing || cert.status === 'revoked'}
@@ -422,20 +446,79 @@ export default function CertificateDetail() {
             <span className="text-slate-500">Challenge type:</span>
             <span className="ml-2 font-medium text-slate-900">{cert.challenge_type}</span>
           </div>
-          <div>
-            <span className="text-slate-500">Auto-renewal:</span>
-            <span className="ml-2 font-medium text-slate-900">
-              {cert.auto_renew ? 'On' : 'Off'}
-            </span>
-          </div>
-          {cert.auto_renew && (
+          <div className="flex items-center justify-between">
             <div>
-              <span className="text-slate-500">Renewal threshold:</span>
-              <span className="ml-2 font-medium text-slate-900">
-                {cert.renewal_threshold_days
-                  ? `${cert.renewal_threshold_days} days before expiry`
-                  : 'System default (30 days)'}
-              </span>
+              <span className="text-slate-500">Auto-renewal:</span>
+              {!editingAutoRenew && (
+                <span className="ml-2 font-medium text-slate-900">{cert.auto_renew ? 'On' : 'Off'}</span>
+              )}
+              {cert.auto_renew && !editingAutoRenew && cert.renewal_threshold_days && (
+                <span className="ml-2 text-slate-500 text-xs">({cert.renewal_threshold_days} days before expiry)</span>
+              )}
+              {cert.auto_renew && !editingAutoRenew && !cert.renewal_threshold_days && (
+                <span className="ml-2 text-slate-500 text-xs">(system default: 30 days)</span>
+              )}
+            </div>
+            {!editingAutoRenew && (
+              <button
+                onClick={() => {
+                  setAutoRenewForm({
+                    auto_renew: cert.auto_renew,
+                    renewal_threshold_days: cert.renewal_threshold_days ? String(cert.renewal_threshold_days) : '',
+                  });
+                  setEditingAutoRenew(true);
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium ml-4"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          {editingAutoRenew && (
+            <div className="col-span-2 space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoRenewForm.auto_renew}
+                    onChange={(e) => setAutoRenewForm({ ...autoRenewForm, auto_renew: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                </label>
+                <span className="text-sm font-medium text-slate-700">{autoRenewForm.auto_renew ? 'On' : 'Off'}</span>
+              </div>
+              {autoRenewForm.auto_renew && (
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Days before expiry (leave empty for system default)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={autoRenewForm.renewal_threshold_days}
+                    onChange={(e) => setAutoRenewForm({ ...autoRenewForm, renewal_threshold_days: e.target.value })}
+                    placeholder="30 (system default)"
+                    className="w-48 px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveAutoRenew}
+                  disabled={savingAutoRenew}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {savingAutoRenew ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditingAutoRenew(false)}
+                  disabled={savingAutoRenew}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-200 rounded-lg hover:bg-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
         </div>

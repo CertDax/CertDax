@@ -162,7 +162,7 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 		}
 	}
 
-	logger.Info("Reconciling CertDaxCertificate",
+	logger.V(1).Info("Reconciling CertDaxCertificate",
 		"name", certCR.Name,
 		"certificateId", certID,
 		"type", certCR.Spec.Type,
@@ -249,24 +249,50 @@ func (r *CertDaxCertificateReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	// Create or update the secret
 	if secretExists {
-		existingSecret.Type = secret.Type
-		existingSecret.Data = secret.Data
-		existingSecret.Labels = secret.Labels
-		existingSecret.Annotations = secret.Annotations
-		if secretNamespace == certCR.Namespace {
-			existingSecret.OwnerReferences = secret.OwnerReferences
+		// Skip update if cert data hasn't changed (avoids re-triggering reconcile loops)
+		if string(existingSecret.Data[corev1.TLSCertKey]) == certResp.CertificatePEM &&
+			string(existingSecret.Data[corev1.TLSPrivateKeyKey]) == certResp.PrivateKeyPEM {
+			logger.V(1).Info("TLS secret already up to date, skipping update", "secret", secret.Name, "namespace", secret.Namespace)
+		} else {
+			// Detect renewal: old expiry differs from new expiry
+			oldExpiry := ""
+			if existingSecret.Annotations != nil {
+				oldExpiry = existingSecret.Annotations["certdax.com/expires-at"]
+			}
+			existingSecret.Type = secret.Type
+			existingSecret.Data = secret.Data
+			existingSecret.Labels = secret.Labels
+			existingSecret.Annotations = secret.Annotations
+			if secretNamespace == certCR.Namespace {
+				existingSecret.OwnerReferences = secret.OwnerReferences
+			}
+			if err := r.Update(ctx, existingSecret); err != nil {
+				r.updateStatus(ctx, &certCR, false, fmt.Sprintf("Failed to update secret: %v", err), certResp.CommonName, certResp.ExpiresAt)
+				return ctrl.Result{RequeueAfter: syncInterval}, err
+			}
+			if oldExpiry != "" && oldExpiry != certResp.ExpiresAt {
+				logger.Info("Certificate renewed — TLS secret updated",
+					"secret", secret.Name,
+					"namespace", secret.Namespace,
+					"commonName", certResp.CommonName,
+					"previousExpiry", oldExpiry,
+					"newExpiry", certResp.ExpiresAt,
+				)
+			} else {
+				logger.Info("TLS secret updated", "secret", secret.Name, "namespace", secret.Namespace, "commonName", certResp.CommonName)
+			}
 		}
-		if err := r.Update(ctx, existingSecret); err != nil {
-			r.updateStatus(ctx, &certCR, false, fmt.Sprintf("Failed to update secret: %v", err), certResp.CommonName, certResp.ExpiresAt)
-			return ctrl.Result{RequeueAfter: syncInterval}, err
-		}
-		logger.Info("Updated TLS secret", "secret", secret.Name, "namespace", secret.Namespace)
 	} else {
 		if err := r.Create(ctx, secret); err != nil {
 			r.updateStatus(ctx, &certCR, false, fmt.Sprintf("Failed to create secret: %v", err), certResp.CommonName, certResp.ExpiresAt)
 			return ctrl.Result{RequeueAfter: syncInterval}, err
 		}
-		logger.Info("Created TLS secret", "secret", secret.Name, "namespace", secret.Namespace)
+		logger.Info("TLS secret created",
+			"secret", secret.Name,
+			"namespace", secret.Namespace,
+			"commonName", certResp.CommonName,
+			"expires", certResp.ExpiresAt,
+		)
 	}
 
 	// Update status

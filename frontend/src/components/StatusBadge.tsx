@@ -11,6 +11,7 @@ const statusConfig: Record<string, { color: string; label: string }> = {
   deployed: { color: 'bg-emerald-100 text-emerald-800', label: 'Deployed' },
   pending_removal: { color: 'bg-orange-100 text-orange-800', label: 'Removing' },
   failed: { color: 'bg-red-100 text-red-800', label: 'Failed' },
+  deleting: { color: 'bg-slate-100 text-slate-600', label: 'Deleting' },
   online: { color: 'bg-emerald-100 text-emerald-800', label: 'Online' },
   offline: { color: 'bg-gray-100 text-gray-800', label: 'Offline' },
 };

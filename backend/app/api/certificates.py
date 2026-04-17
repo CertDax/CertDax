@@ -855,6 +855,42 @@ def revoke_certificate(
     return resp
 
 
+@router.patch("/{cert_id}", response_model=CertificateResponse, summary="Update certificate settings")
+def update_certificate(
+    cert_id: int,
+    auto_renew: bool | None = Query(default=None),
+    renewal_threshold_days: int | None = Query(default=None, ge=1, le=365),
+    clear_threshold: bool = Query(default=False, description="Set renewal_threshold_days to null (use system default)"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update mutable settings of an existing ACME certificate (auto-renewal on/off, threshold)."""
+    cert = db.query(Certificate).filter(
+        Certificate.id == cert_id,
+        Certificate.group_id.in_(visible_group_ids(db, user, "certificates")),
+    ).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+
+    if auto_renew is not None:
+        cert.auto_renew = auto_renew
+    if clear_threshold:
+        cert.renewal_threshold_days = None
+    elif renewal_threshold_days is not None:
+        cert.renewal_threshold_days = renewal_threshold_days
+    cert.modified_by_user_id = user.id
+    cert.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cert)
+
+    ca = db.query(CertificateAuthority).filter(CertificateAuthority.id == cert.ca_id).first()
+    resp = CertificateResponse.model_validate(cert)
+    resp.ca_name = ca.name if ca else None
+    resp.created_by_username = _get_username(db, cert.created_by_user_id)
+    resp.modified_by_username = _get_username(db, cert.modified_by_user_id)
+    return resp
+
+
 @router.delete("/{cert_id}")
 def delete_certificate(
     cert_id: int,

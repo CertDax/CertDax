@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -22,6 +23,96 @@ import (
 )
 
 var version = "dev"
+
+// logRingBuffer holds the last N log lines in memory for live log shipping.
+type logRingBuffer struct {
+	mu      sync.Mutex
+	entries []string
+	size    int
+	pos     int
+	full    bool
+}
+
+func newLogRingBuffer(n int) *logRingBuffer {
+	return &logRingBuffer{entries: make([]string, n), size: n}
+}
+
+func (rb *logRingBuffer) Write(p []byte) (int, error) {
+	line := strings.TrimRight(string(p), "\n")
+	if line == "" {
+		return len(p), nil
+	}
+	rb.mu.Lock()
+	rb.entries[rb.pos] = line
+	rb.pos = (rb.pos + 1) % rb.size
+	if rb.pos == 0 {
+		rb.full = true
+	}
+	rb.mu.Unlock()
+	return len(p), nil
+}
+
+func (rb *logRingBuffer) Lines() []string {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	if !rb.full {
+		out := make([]string, rb.pos)
+		copy(out, rb.entries[:rb.pos])
+		return out
+	}
+	out := make([]string, rb.size)
+	copy(out, rb.entries[rb.pos:])
+	copy(out[rb.size-rb.pos:], rb.entries[:rb.pos])
+	return out
+}
+
+// logBuf is the global ring buffer that captures all log output.
+var logBuf = newLogRingBuffer(200)
+
+// setupLogging configures the logger to write to a file on Windows.
+// On Linux the default stderr output is captured by systemd/journald.
+// Returns a cleanup function that should be deferred by the caller.
+func setupLogging() func() {
+	log.SetFlags(log.Ldate | log.Ltime)
+
+	if runtime.GOOS != "windows" {
+		// Linux: write to stderr and ring buffer
+		log.SetOutput(io.MultiWriter(os.Stderr, logBuf))
+		return func() {}
+	}
+
+	programData := os.Getenv("ProgramData")
+	if programData == "" {
+		programData = `C:\ProgramData`
+	}
+	logDir := filepath.Join(programData, "CertDax", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		// Can't create log dir — fall back to ring buffer only
+		log.SetOutput(logBuf)
+		return func() {}
+	}
+
+	logPath := filepath.Join(logDir, "certdax-agent.log")
+
+	// Simple size-based rotation: keep one archive at .1
+	if fi, err := os.Stat(logPath); err == nil && fi.Size() > 10*1024*1024 {
+		_ = os.Remove(logPath + ".1")
+		_ = os.Rename(logPath, logPath+".1")
+	}
+
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		// Can't open log file — fall back to ring buffer only
+		log.SetOutput(logBuf)
+		return func() {}
+	}
+
+	// Write to file and ring buffer.
+	log.SetOutput(io.MultiWriter(f, logBuf))
+	log.Printf("[INFO] Logging to %s", logPath)
+
+	return func() { f.Close() }
+}
 
 // Config holds the agent configuration.
 type Config struct {
@@ -53,6 +144,7 @@ type CertificateData struct {
 	PostDeployScript string `json:"post_deploy_script"`
 	DeployFormat    string `json:"deploy_format"`
 	PFXData         string `json:"pfx_data"`
+	IsCA            bool   `json:"is_ca"`
 }
 
 // Agent is the main deploy agent.
@@ -94,11 +186,12 @@ func (a *Agent) apiRequest(method, path string, body interface{}) (*http.Respons
 
 func (a *Agent) heartbeat() {
 	hostname, _ := os.Hostname()
-	payload := map[string]string{
-		"hostname": hostname,
-		"os":       getOSPrettyName(),
-		"arch":     runtime.GOARCH,
-		"version":  version,
+	payload := map[string]interface{}{
+		"hostname":    hostname,
+		"os":          getOSPrettyName(),
+		"arch":        runtime.GOARCH,
+		"version":     version,
+		"recent_logs": logBuf.Lines(),
 	}
 
 	resp, err := a.apiRequest("POST", "/api/agent/heartbeat", payload)
@@ -190,6 +283,10 @@ func safeName(commonName string) string {
 }
 
 func getOSPrettyName() string {
+	if runtime.GOOS == "windows" {
+		// Read Windows version from registry or use environment
+		return "Windows"
+	}
 	data, err := os.ReadFile("/etc/os-release")
 	if err != nil {
 		return runtime.GOOS
@@ -214,9 +311,16 @@ func writeFile(path, content string, perm os.FileMode) error {
 	return os.WriteFile(path, []byte(content), perm)
 }
 
-// runScript writes a script to a temp file and executes it with sh.
+// runScript writes a script to a temp file and executes it.
+// On Linux/macOS, it runs with sh. On Windows, it runs with powershell.exe.
 func runScript(label string, id int, script string) error {
-	tmpFile, err := os.CreateTemp("", "certdax-*.sh")
+	ext := ".sh"
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		ext = ".ps1"
+	}
+
+	tmpFile, err := os.CreateTemp("", "certdax-*"+ext)
 	if err != nil {
 		return fmt.Errorf("create temp script: %w", err)
 	}
@@ -228,14 +332,18 @@ func runScript(label string, id int, script string) error {
 	}
 	tmpFile.Close()
 
-	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
-		return fmt.Errorf("chmod temp script: %w", err)
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+			return fmt.Errorf("chmod temp script: %w", err)
+		}
+		cmd = exec.Command("sh", tmpFile.Name())
+	} else {
+		cmd = exec.Command("powershell.exe", "-ExecutionPolicy", "Bypass", "-File", tmpFile.Name())
 	}
 
 	log.Printf("[INFO] %s %d: running %s script", label, id, strings.ToLower(label[:1])+label[1:])
 
 	var cmdOutput bytes.Buffer
-	cmd := exec.Command("sh", tmpFile.Name())
 	cmd.Stdout = &cmdOutput
 	cmd.Stderr = &cmdOutput
 
@@ -265,6 +373,24 @@ func (a *Agent) deployCertificate(deploymentID int) {
 	if format == "" {
 		format = "crt"
 	}
+
+	// Detect renewal vs. new deployment by checking if the primary cert file already exists.
+	var primaryFile string
+	switch format {
+	case "pem":
+		primaryFile = filepath.Join(deployPath, name+".pem")
+	case "pfx":
+		primaryFile = filepath.Join(deployPath, name+".pfx")
+	default:
+		primaryFile = filepath.Join(deployPath, name+".crt")
+	}
+	_, statErr := os.Stat(primaryFile)
+	isRenewal := statErr == nil
+	action := "Deploying new certificate"
+	if isRenewal {
+		action = "Renewing certificate"
+	}
+	log.Printf("[INFO] Deployment %d: %s '%s' -> %s (format: %s)", deploymentID, action, certData.CommonName, deployPath, format)
 
 	// Create deploy directory
 	if err := os.MkdirAll(deployPath, 0755); err != nil {
@@ -363,7 +489,18 @@ func (a *Agent) deployCertificate(deploymentID int) {
 		return
 	}
 
-	log.Printf("[INFO] Deployment %d: certificate files written to %s (format: %s)", deploymentID, deployPath, format)
+	// On Windows, also deploy certificate into the appropriate Windows cert store
+	if runtime.GOOS == "windows" {
+		if err := deployToWindowsStore(certData.CertificatePEM, certData.IsCA); err != nil {
+			log.Printf("[WARN] Deployment %d: Windows cert store install failed: %v", deploymentID, err)
+		} else {
+			storeName := "Personal (My)"
+			if certData.IsCA {
+				storeName = "Trusted Root Certification Authorities"
+			}
+			log.Printf("[INFO] Deployment %d: certificate installed in Windows cert store: %s", deploymentID, storeName)
+		}
+	}
 
 	// Execute post-deploy script
 	if certData.PostDeployScript != "" {
@@ -382,7 +519,12 @@ func (a *Agent) deployCertificate(deploymentID int) {
 		log.Printf("[INFO] Deployment %d: running reload command: %s", deploymentID, certData.ReloadCommand)
 
 		var cmdOutput bytes.Buffer
-		cmd := exec.Command("sh", "-c", certData.ReloadCommand)
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", certData.ReloadCommand)
+		} else {
+			cmd = exec.Command("sh", "-c", certData.ReloadCommand)
+		}
 		cmd.Stdout = &cmdOutput
 		cmd.Stderr = &cmdOutput
 
@@ -401,7 +543,11 @@ func (a *Agent) deployCertificate(deploymentID int) {
 	}
 
 	a.reportStatus(deploymentID, "deployed", "")
-	log.Printf("[INFO] Deployment %d: completed for %s", deploymentID, certData.CommonName)
+	if isRenewal {
+		log.Printf("[INFO] Deployment %d: certificate successfully RENEWED: %s", deploymentID, certData.CommonName)
+	} else {
+		log.Printf("[INFO] Deployment %d: NEW certificate successfully deployed: %s", deploymentID, certData.CommonName)
+	}
 }
 
 // RemovalData is the response from the removal info endpoint.
@@ -515,7 +661,12 @@ func (a *Agent) undeployCertificate(deploymentID int) {
 		log.Printf("[INFO] Removal %d: running reload command: %s", deploymentID, info.ReloadCommand)
 
 		var cmdOutput bytes.Buffer
-		cmd := exec.Command("sh", "-c", info.ReloadCommand)
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("powershell.exe", "-ExecutionPolicy", "Bypass", "-Command", info.ReloadCommand)
+		} else {
+			cmd = exec.Command("sh", "-c", info.ReloadCommand)
+		}
 		cmd.Stdout = &cmdOutput
 		cmd.Stderr = &cmdOutput
 
@@ -530,18 +681,29 @@ func (a *Agent) undeployCertificate(deploymentID int) {
 	}
 
 	a.reportStatus(deploymentID, "removed", "")
-	log.Printf("[INFO] Removal %d: completed for %s", deploymentID, info.CommonName)
+	log.Printf("[INFO] Removal %d: certificate successfully REMOVED: %s", deploymentID, info.CommonName)
 }
 
-// Run starts the agent main loop.
+// Run starts the agent with OS signal handling (interactive / console mode).
 func (a *Agent) Run() {
+	sigStop := make(chan os.Signal, 1)
+	signal.Notify(sigStop, syscall.SIGINT, syscall.SIGTERM)
+	stop := make(chan struct{})
+	go func() {
+		sig := <-sigStop
+		log.Printf("[INFO] Received signal %v, shutting down", sig)
+		close(stop)
+	}()
+	a.runLoop(stop)
+}
+
+// runLoop is the core polling loop. It exits when stop is closed.
+// This is used both by Run() (signal-driven) and by the Windows SCM handler.
+func (a *Agent) runLoop(stop <-chan struct{}) {
 	log.Printf("[INFO] CertDax Agent %s starting", version)
 	log.Printf("[INFO] API: %s", a.config.APIURL)
 	log.Printf("[INFO] Poll interval: %ds", a.config.PollInterval)
 	log.Printf("[INFO] OS: %s/%s", runtime.GOOS, runtime.GOARCH)
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
 	ticker := time.NewTicker(time.Duration(a.config.PollInterval) * time.Second)
 	defer ticker.Stop()
@@ -549,14 +711,16 @@ func (a *Agent) Run() {
 	// Initial run
 	a.heartbeat()
 	a.processDeployments()
+	a.heartbeat() // flush logs generated by the initial deployment run
 
 	for {
 		select {
 		case <-ticker.C:
 			a.heartbeat()
 			a.processDeployments()
-		case sig := <-stop:
-			log.Printf("[INFO] Received signal %v, shutting down", sig)
+			a.heartbeat() // flush logs generated by this cycle's deployment work
+		case <-stop:
+			log.Printf("[INFO] Shutting down")
 			return
 		}
 	}
@@ -570,10 +734,10 @@ func (a *Agent) processDeployments() {
 			name = "unknown"
 		}
 		if dep.Status == "pending_removal" {
-			log.Printf("[INFO] Processing removal %d for %s", dep.ID, name)
+			log.Printf("[INFO] Removal %d: removing certificate '%s'", dep.ID, name)
 			a.undeployCertificate(dep.ID)
 		} else {
-			log.Printf("[INFO] Processing deployment %d for %s", dep.ID, name)
+			log.Printf("[INFO] Deployment %d: processing '%s'", dep.ID, name)
 			a.deployCertificate(dep.ID)
 		}
 	}
@@ -607,9 +771,25 @@ func main() {
 	flag.BoolVar(&showVersion, "version", false, "Show version and exit")
 	flag.Parse()
 
+	closeLog := setupLogging()
+	defer closeLog()
+
 	if showVersion {
 		fmt.Printf("certdax-agent %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
 		os.Exit(0)
+	}
+
+	// If no config path given, use OS-appropriate default
+	if configPath == "" {
+		if runtime.GOOS == "windows" {
+			programData := os.Getenv("ProgramData")
+			if programData == "" {
+				programData = `C:\ProgramData`
+			}
+			configPath = filepath.Join(programData, "CertDax", "config.yaml")
+		} else {
+			configPath = "/etc/certdax/config.yaml"
+		}
 	}
 
 	// Priority: flags > env vars > config file
@@ -622,17 +802,18 @@ func main() {
 
 	if configPath != "" {
 		cfg, err := loadConfig(configPath)
-		if err != nil {
+		if err != nil && (apiURL == "" || token == "") {
 			log.Fatalf("[FATAL] %v", err)
-		}
-		if apiURL == "" {
-			apiURL = cfg.APIURL
-		}
-		if token == "" {
-			token = cfg.AgentToken
-		}
-		if pollInterval == 30 && cfg.PollInterval > 0 {
-			pollInterval = cfg.PollInterval
+		} else if err == nil {
+			if apiURL == "" {
+				apiURL = cfg.APIURL
+			}
+			if token == "" {
+				token = cfg.AgentToken
+			}
+			if pollInterval == 30 && cfg.PollInterval > 0 {
+				pollInterval = cfg.PollInterval
+			}
 		}
 	}
 
@@ -655,5 +836,17 @@ func main() {
 		PollInterval: pollInterval,
 	})
 
-	agent.Run()
+	// On Windows, detect if launched by the SCM and dispatch accordingly.
+	// On Linux/macOS this always returns false and agent.Run() handles SIGTERM.
+	isService, err := isWindowsService()
+	if err != nil {
+		log.Fatalf("[FATAL] Cannot determine service mode: %v", err)
+	}
+	if isService {
+		if err := runAsWindowsService(agent); err != nil {
+			log.Fatalf("[FATAL] Windows service exited with error: %v", err)
+		}
+	} else {
+		agent.Run()
+	}
 }

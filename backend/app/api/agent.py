@@ -40,6 +40,9 @@ def agent_heartbeat(
         client_ip = request.client.host
     if client_ip:
         target.agent_ip = client_ip
+    if req.recent_logs is not None:
+        import json
+        target.recent_logs = json.dumps(req.recent_logs[-200:])
     db.commit()
     return {"status": "ok"}
 
@@ -122,6 +125,7 @@ def agent_get_certificate(
             "post_deploy_script": target.post_deploy_script,
             "deploy_format": deploy_format,
             "pfx_data": "",
+            "is_ca": ss_cert.is_ca,
         }
 
         if deploy_format == "pfx" and private_key_pem and ss_cert.certificate_pem:
@@ -173,6 +177,7 @@ def agent_get_certificate(
         "post_deploy_script": target.post_deploy_script,
         "deploy_format": deploy_format,
         "pfx_data": "",
+        "is_ca": False,
     }
 
     if deploy_format == "pfx" and private_key_pem and cert.certificate_pem:

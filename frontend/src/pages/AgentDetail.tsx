@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -18,6 +18,10 @@ import {
   WifiOff,
   Pencil,
   FolderTree,
+  Download,
+  Monitor,
+  ChevronRight,
+  ScrollText,
 } from 'lucide-react';
 import api from '../services/api';
 import type { AgentDetail, Certificate, SelfSignedCertificate } from '../types';
@@ -39,7 +43,15 @@ export default function AgentDetailPage() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [newToken, setNewToken] = useState('');
   const [showToken, setShowToken] = useState(false);
-  const [copied, setCopied] = useState('');
+
+  // Windows installer state
+  interface SelfSignedCA { id: number; common_name: string }
+  const [availableCAs, setAvailableCAs] = useState<SelfSignedCA[]>([]);
+  const [loadingCAs, setLoadingCAs] = useState(false);
+  const [modalCaId, setModalCaId] = useState<number | ''>('');
+  const [modalArch, setModalArch] = useState<'amd64' | 'arm64' | '386'>('amd64');
+  const [downloadingInstaller, setDownloadingInstaller] = useState(false);
+  const [downloadingScript, setDownloadingScript] = useState(false);
 
   // Edit settings
   const [editingSettings, setEditingSettings] = useState(false);
@@ -48,6 +60,20 @@ export default function AgentDetailPage() {
   const [editPreDeployScript, setEditPreDeployScript] = useState('');
   const [editPostDeployScript, setEditPostDeployScript] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Live logs modal
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [copied, setCopied] = useState('');
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const prevLogCountRef = useRef(0);
+
+  // Deleting state: keyed by "cert:ID" or "ss:ID" so we can match against
+  // the backend's pending_removal_cert_ids / pending_removal_ss_ids lists.
+  const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
+  // Ghost copies of certs being deleted — keeps the row visible even after
+  // the backend removes the AgentCertificate record from assigned_certificates.
+  const [ghostCerts, setGhostCerts] = useState<Map<string, import('../types').AgentCertificate>>(new Map());
 
   const fetchAgent = async () => {
     const { data } = await api.get(`/agents/${id}`);
@@ -70,6 +96,59 @@ export default function AgentDetailPage() {
     const interval = setInterval(fetchAgent, 5000);
     return () => clearInterval(interval);
   }, [id]);
+
+  // Auto-scroll log modal when new lines arrive
+  useEffect(() => {
+    const newCount = agent?.recent_logs?.length || 0;
+    if (autoScroll && logContainerRef.current && newCount !== prevLogCountRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+    prevLogCountRef.current = newCount;
+  }, [agent?.recent_logs, autoScroll]);
+
+  // Clear deleting state only when the backend confirms the pending_removal
+  // deployment is gone (i.e. the agent has actually processed and confirmed removal).
+  // For certs that were never deployed, there's no pending_removal record, so
+  // they clear as soon as the assignment disappears from assigned_certificates.
+  useEffect(() => {
+    if (!agent || deletingKeys.size === 0) return;
+    const assignedCertIds = new Set(agent.assigned_certificates.map((ac) => ac.certificate_id).filter(Boolean));
+    const assignedSsIds = new Set(agent.assigned_certificates.map((ac) => ac.self_signed_certificate_id).filter(Boolean));
+    const pendingCertIds = new Set(agent.pending_removal_cert_ids ?? []);
+    const pendingSsIds = new Set(agent.pending_removal_ss_ids ?? []);
+    setDeletingKeys((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const key of next) {
+        const [type, rawId] = key.split(':');
+        const numId = Number(rawId);
+        if (type === 'cert') {
+          // Clear when: no longer assigned AND no longer pending_removal
+          if (!assignedCertIds.has(numId) && !pendingCertIds.has(numId)) {
+            next.delete(key); changed = true;
+          }
+        } else if (type === 'ss') {
+          if (!assignedSsIds.has(numId) && !pendingSsIds.has(numId)) {
+            next.delete(key); changed = true;
+          }
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [agent?.assigned_certificates, agent?.pending_removal_cert_ids, agent?.pending_removal_ss_ids]);
+
+  // Sync ghostCerts to deletingKeys — drop ghosts once their key is cleared
+  useEffect(() => {
+    if (ghostCerts.size === 0) return;
+    setGhostCerts((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const key of [...next.keys()]) {
+        if (!deletingKeys.has(key)) { next.delete(key); changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [deletingKeys]);
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,12 +174,29 @@ export default function AgentDetailPage() {
 
   const handleUnassign = async (assignmentId: number) => {
     if (!confirm('Detach certificate from this agent?')) return;
+    // Find the cert being removed so we can key by cert ID (not assignment ID,
+    // which disappears from the backend immediately after DELETE).
+    const ac = agent?.assigned_certificates.find((a) => a.id === assignmentId);
+    const key = ac?.certificate_id
+      ? `cert:${ac.certificate_id}`
+      : ac?.self_signed_certificate_id
+        ? `ss:${ac.self_signed_certificate_id}`
+        : null;
+    if (key && ac) {
+      setDeletingKeys((prev) => new Set(prev).add(key));
+      setGhostCerts((prev) => new Map(prev).set(key, ac));
+    }
     try {
       await api.delete(`/agents/${id}/certificates/${assignmentId}`);
+      // "Deleting" stays until the backend reports pending_removal is gone
+      // (i.e. the agent has confirmed removal via the status callback).
     } catch (err) {
       alert('Error detaching certificate');
+      if (key) {
+        setDeletingKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
+        setGhostCerts((prev) => { const next = new Map(prev); next.delete(key); return next; });
+      }
     }
-    await fetchAgent();
   };
 
   const handleDelete = async () => {
@@ -139,7 +235,54 @@ export default function AgentDetailPage() {
   const handleRegenerateToken = async () => {
     const { data } = await api.post(`/agents/${id}/regenerate-token`);
     setNewToken(data.agent_token);
+    if (agent?.os_type === 'windows' && availableCAs.length === 0) {
+      setLoadingCAs(true);
+      try {
+        const { data: caData } = await api.get('/self-signed');
+        setAvailableCAs((caData as any[]).filter((c) => c.is_ca === true));
+      } finally {
+        setLoadingCAs(false);
+      }
+    }
     setShowInstallModal(true);
+  };
+
+  const downloadWindowsInstaller = async () => {
+    if (!modalCaId) return;
+    setDownloadingInstaller(true);
+    try {
+      const resp = await api.get(
+        `/agents/${id}/install/windows-installer?ca_id=${modalCaId}&arch=${modalArch}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certdax-agent-${(agent?.name ?? id)?.toString().replace(/\s+/g, '_')}-setup.exe`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingInstaller(false);
+    }
+  };
+
+  const downloadWindowsScript = async () => {
+    if (!modalCaId) return;
+    setDownloadingScript(true);
+    try {
+      const resp = await api.get(
+        `/agents/${id}/install/windows-script?ca_id=${modalCaId}`,
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(resp.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `install-certdax-agent-${(agent?.name ?? id)?.toString().replace(/\s+/g, '_')}.ps1`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingScript(false);
+    }
   };
 
   const copyToClipboard = (text: string, key: string) => {
@@ -196,9 +339,36 @@ export default function AgentDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-slate-900">{agent.name}</h1>
             <StatusBadge status={agent.status} />
+            {agent.os_type === 'windows' ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path d="M0 3.449 9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
+                </svg>
+                Windows
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-xs font-medium">
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current" aria-hidden="true">
+                  <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489.117.779.567 1.563 1.182 2.114.267.237.537.463.812.683-1.148 1.7-1.955 3.955-1.612 6.034.232 1.377.91 2.576 2.053 3.278 1.161.71 2.495.83 3.875.556 1.68-.338 3.437-1.41 4.968-2.897 1.532-1.488 2.864-3.386 3.684-5.523.819-2.137 1.082-4.547.568-6.827-.52-2.292-1.797-4.432-3.688-5.796-.94-.667-2.001-1.078-3.03-1.101zm1.032 1.714c.774.05 1.515.358 2.307.926 1.679 1.19 2.817 3.097 3.289 5.14.457 2.014.196 4.176-.534 6.115-.73 1.94-1.964 3.693-3.378 5.064-1.414 1.37-3.028 2.314-4.495 2.616-1.122.226-2.196.116-3.092-.43-.905-.552-1.447-1.519-1.624-2.618-.285-1.696.306-3.655 1.279-5.199.256-.408.52-.793.793-1.154-.028-.026-.055-.052-.082-.08-.476-.478-.899-.976-1.218-1.498-.32-.52-.55-1.057-.59-1.598-.04-.54.088-1.083.366-1.569.279-.485.716-.904 1.285-1.207.57-.303 1.27-.483 2.075-.483.8 0 1.594.19 2.32.555.726.364 1.374.902 1.855 1.573.48.67.778 1.465.806 2.302.028.836-.203 1.71-.68 2.479-.477.77-1.189 1.429-2.062 1.85-.87.42-1.879.604-2.9.484-.023-.003-.046-.006-.07-.01.09.278.226.543.41.789.183.245.407.472.671.68.264.207.568.394.906.55.338.155.71.28 1.108.358.398.079.824.108 1.265.08.44-.028.896-.112 1.355-.265.46-.153.923-.377 1.372-.68.45-.302.884-.676 1.29-1.123.405-.447.78-.97 1.1-1.57.32-.6.584-1.277.773-2.024.19-.747.302-1.563.302-2.427 0-.863-.112-1.744-.355-2.6-.243-.855-.621-1.683-1.14-2.43-.52-.748-1.186-1.415-1.99-1.929-.804-.514-1.748-.877-2.806-.952zm-3.29 5.63c.19 0 .351.038.476.106.125.069.213.164.264.278.05.114.062.242.033.37-.029.128-.1.254-.208.362-.108.108-.255.2-.434.262-.18.062-.39.093-.617.093-.228 0-.427-.03-.594-.09-.167-.06-.3-.147-.39-.254-.091-.107-.138-.229-.138-.354 0-.172.086-.338.254-.47.168-.132.41-.21.697-.21z"/>
+                </svg>
+                Linux
+              </span>
+            )}
           </div>
           <p className="text-slate-500 text-sm">{agent.hostname}</p>
         </div>
+        <button
+          onClick={() => setShowLogsModal(true)}
+          className="flex items-center gap-1.5 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium"
+        >
+          <ScrollText className="w-4 h-4" />
+          Live Logs
+          {(agent.recent_logs?.length || 0) > 0 && (
+            <span className="inline-flex items-center justify-center w-5 h-5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+              {agent.recent_logs.length > 99 ? '99+' : agent.recent_logs.length}
+            </span>
+          )}
+        </button>
         <button
           onClick={handleDelete}
           className="px-4 py-2 text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium"
@@ -539,9 +709,14 @@ export default function AgentDetailPage() {
               <tbody className="divide-y divide-slate-200">
                 {/* ACME Certificates */}
                 {(() => {
-                  const acmeCerts = agent.assigned_certificates
-                    .filter((ac) => ac.certificate_type !== 'self-signed')
-                    .sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
+                  const assignedIds = new Set(agent.assigned_certificates.map((ac) => ac.id));
+                  const acmeGhosts = [...ghostCerts.entries()]
+                    .filter(([key, ac]) => key.startsWith('cert:') && !assignedIds.has(ac.id))
+                    .map(([, ac]) => ac);
+                  const acmeCerts = [
+                    ...agent.assigned_certificates.filter((ac) => ac.certificate_type !== 'self-signed'),
+                    ...acmeGhosts,
+                  ].sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
                   if (acmeCerts.length === 0) return null;
                   return (
                     <>
@@ -562,11 +737,19 @@ export default function AgentDetailPage() {
                               {ac.certificate_name || 'Unknown'}
                             </Link>
                           </td>
-                          <td className="px-6 py-4"><StatusBadge status={ac.certificate_status || 'unknown'} /></td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={
+                              deletingKeys.has(`cert:${ac.certificate_id}`)
+                                ? 'deleting'
+                                : ac.deployment_status === 'deployed'
+                                  ? (ac.certificate_status || 'valid')
+                                  : (ac.deployment_status || 'pending')
+                            } />
+                          </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`cert:${ac.certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>
@@ -575,9 +758,14 @@ export default function AgentDetailPage() {
 
                 {/* Self-Signed Certificates */}
                 {(() => {
-                  const ssCerts = agent.assigned_certificates
-                    .filter((ac) => ac.certificate_type === 'self-signed')
-                    .sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
+                  const assignedIds = new Set(agent.assigned_certificates.map((ac) => ac.id));
+                  const ssGhosts = [...ghostCerts.entries()]
+                    .filter(([key, ac]) => key.startsWith('ss:') && !assignedIds.has(ac.id))
+                    .map(([, ac]) => ac);
+                  const ssCerts = [
+                    ...agent.assigned_certificates.filter((ac) => ac.certificate_type === 'self-signed'),
+                    ...ssGhosts,
+                  ].sort((a, b) => (a.certificate_name || '').localeCompare(b.certificate_name || ''));
                   if (ssCerts.length === 0) return null;
                   return (
                     <>
@@ -598,11 +786,19 @@ export default function AgentDetailPage() {
                               {ac.certificate_name || 'Unknown'}
                             </Link>
                           </td>
-                          <td className="px-6 py-4"><StatusBadge status={ac.certificate_status || 'unknown'} /></td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={
+                              deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)
+                                ? 'deleting'
+                                : ac.deployment_status === 'deployed'
+                                  ? (ac.certificate_status || 'valid')
+                                  : (ac.deployment_status || 'pending')
+                            } />
+                          </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} className="text-red-500 hover:text-red-700 p-1"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
                         </tr>
                       ))}
                     </>
@@ -615,101 +811,274 @@ export default function AgentDetailPage() {
         </div>
       </div>
 
-      {/* Install modal */}
-      {showInstallModal && newToken && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">
-                  Installation command
-                </h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Run this command on {agent.hostname}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowInstallModal(false);
-                  setNewToken('');
-                  setShowToken(false);
-                }}
-                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  <Terminal className="w-4 h-4 inline mr-1" />
-                  Installation command
+      {/* Live Logs modal */}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh]">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700 flex-shrink-0">
+              <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <ScrollText className="w-4 h-4 text-emerald-400" />
+                Live Logs — {agent.name}
+                <span className="text-xs text-slate-500">
+                  ({agent.recent_logs?.length || 0} lines)
+                </span>
+              </h2>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoScroll}
+                    onChange={(e) => setAutoScroll(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                  />
+                  Auto-scroll
                 </label>
-                <div className="bg-slate-900 rounded-lg p-4 relative">
-                  <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
-                    {getCurlCommand()}
-                  </pre>
-                  <button
-                    onClick={() => copyToClipboard(getCurlCommand(), 'curl')}
-                    className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700"
-                  >
-                    {copied === 'curl' ? (
-                      <Check className="w-4 h-4 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Agent Token
-                </label>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-mono text-slate-900 overflow-x-auto">
-                    {showToken ? newToken : '••••••••••••••••••••••••••••••••'}
-                  </code>
-                  <button
-                    onClick={() => setShowToken(!showToken)}
-                    className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-                  >
-                    {showToken ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => copyToClipboard(newToken, 'token')}
-                    className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-                  >
-                    {copied === 'token' ? (
-                      <Check className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    const text = (agent.recent_logs || []).join('\n');
+                    copyToClipboard(text, 'logs');
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                >
+                  {copied === 'logs' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  Copy
+                </button>
+                <button
+                  onClick={() => setShowLogsModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             </div>
-
-            <div className="p-6 border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowInstallModal(false);
-                  setNewToken('');
-                  setShowToken(false);
-                }}
-                className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium"
-              >
-                Close
-              </button>
+            {/* Log output */}
+            <div
+              ref={logContainerRef}
+              className="overflow-auto flex-1 p-4 font-mono text-xs leading-5"
+            >
+              {agent.recent_logs && agent.recent_logs.length > 0 ? (
+                agent.recent_logs.map((line, i) => {
+                  const isError = /\bERROR\b/i.test(line);
+                  const isWarn = /\bWARN\b/i.test(line);
+                  return (
+                    <div
+                      key={i}
+                      className={isError ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-slate-300'}
+                    >
+                      {line}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-slate-500 text-center py-12">
+                  No logs available yet. Logs appear after the first heartbeat.
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Install modal */}
+      {showInstallModal && newToken && (() => {
+        const isWindows = agent.os_type === 'windows';
+        const closeModal = () => { setShowInstallModal(false); setNewToken(''); setShowToken(false); setModalCaId(''); setModalArch('amd64'); };
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Install agent: {agent.name}</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    {isWindows ? 'Windows agent installer' : `Run on ${agent.hostname}`}
+                  </p>
+                </div>
+                <button onClick={closeModal} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5">
+                {isWindows ? (
+                  <>
+                    {/* Windows info banner */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-start gap-2">
+                        <Monitor className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-blue-700">
+                          The installer will trust the CA cert, install the signed agent binary, write the config, and register it as a Windows service.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* CA selector */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">
+                        <ShieldCheck className="w-4 h-4 inline mr-1" />Signing CA
+                      </label>
+                      <p className="text-xs text-slate-500 mb-2">Select the CA used to sign the agent binary.</p>
+                      {loadingCAs ? (
+                        <p className="text-sm text-slate-500">Loading CAs…</p>
+                      ) : availableCAs.length === 0 ? (
+                        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                          No CA certificates found. Create one under <strong>Self-Signed Certificates</strong>.
+                        </p>
+                      ) : (
+                        <select
+                          value={modalCaId}
+                          onChange={(e) => setModalCaId(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                        >
+                          <option value="">Select a CA…</option>
+                          {availableCAs.map((ca) => (
+                            <option key={ca.id} value={ca.id}>{ca.common_name}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* Architecture selector */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">Architecture</label>
+                      <p className="text-xs text-slate-500 mb-2">
+                        The PowerShell one-liner auto-detects this. Only needed for manual downloads below.
+                      </p>
+                      <div className="flex gap-2">
+                        {(['amd64', 'arm64', '386'] as const).map((a) => (
+                          <button
+                            key={a}
+                            onClick={() => setModalArch(a)}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                              modalArch === a
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'bg-white border-slate-300 text-slate-600 hover:border-blue-400'
+                            }`}
+                          >
+                            {a === 'amd64' ? 'x64 (AMD64)' : a === 'arm64' ? 'ARM64' : 'x86 (32-bit)'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Primary: PowerShell one-liner — no browser download = no SmartScreen */}
+                    <div className="border-2 border-emerald-200 bg-emerald-50 rounded-xl p-5">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-emerald-100 rounded-lg flex-shrink-0">
+                          <Terminal className="w-5 h-5 text-emerald-700" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-900">
+                            PowerShell one-liner{' '}
+                            <span className="ml-1 text-xs font-normal bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded">Recommended</span>
+                          </p>
+                          <p className="text-xs text-emerald-700 mt-0.5">
+                            Run in an elevated PowerShell session. Downloads without the browser — bypasses SmartScreen entirely.
+                          </p>
+                        </div>
+                      </div>
+                      {modalCaId ? (
+                        <div className="bg-slate-900 rounded-lg p-3 relative">
+                          <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all pr-8">{`iwr -useb "${window.location.origin}/api/agents/${id}/install/windows-script?ca_id=${modalCaId}&token=${localStorage.getItem('token') ?? ''}" | iex`}</pre>
+                          <button
+                            onClick={() => copyToClipboard(`iwr -useb "${window.location.origin}/api/agents/${id}/install/windows-script?ca_id=${modalCaId}&token=${localStorage.getItem('token') ?? ''}" | iex`, 'pscmd')}
+                            className="absolute top-2 right-2 p-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700"
+                          >
+                            {copied === 'pscmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-emerald-700 text-center">Select a signing CA above to see the command</p>
+                      )}
+                    </div>
+
+                    {/* Advanced options */}
+                    <details className="group">
+                      <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700 select-none list-none flex items-center gap-1">
+                        <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
+                        Advanced options
+                      </summary>
+                      <div className="mt-3 space-y-2">
+                        {/* NSIS wizard */}
+                        <div className="border border-slate-200 rounded-lg p-4">
+                          <p className="text-xs font-semibold text-slate-700 mb-1">Windows Installer wizard (.exe)</p>
+                          <p className="text-xs text-slate-500 mb-2">
+                            Downloads via browser — SmartScreen may warn. Right-click → Properties → Unblock if needed.
+                          </p>
+                          <button
+                            onClick={downloadWindowsInstaller}
+                            disabled={!modalCaId || downloadingInstaller}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            {downloadingInstaller ? 'Building installer…' : 'Download setup.exe'}
+                          </button>
+                        </div>
+
+                        {/* PowerShell script download */}
+                        <div className="border border-slate-200 rounded-lg p-4">
+                          <p className="text-xs font-semibold text-slate-700 mb-1">PowerShell script only</p>
+                          <button
+                            onClick={downloadWindowsScript}
+                            disabled={!modalCaId || downloadingScript}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            {downloadingScript ? 'Generating…' : 'Download installer.ps1'}
+                          </button>
+                        </div>
+                      </div>
+                    </details>
+                  </>
+                ) : (
+                  <>
+                    {/* Linux install command */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">
+                        <Terminal className="w-4 h-4 inline mr-1" />
+                        Installation command
+                      </label>
+                      <div className="bg-slate-900 rounded-lg p-4 relative">
+                        <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
+                          {getCurlCommand()}
+                        </pre>
+                        <button
+                          onClick={() => copyToClipboard(getCurlCommand(), 'curl')}
+                          className="absolute top-2 right-2 p-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700"
+                        >
+                          {copied === 'curl' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Token */}
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Agent Token</label>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 bg-slate-100 border border-slate-200 px-4 py-2 rounded-lg text-sm font-mono text-slate-900 overflow-x-auto">
+                          {showToken ? newToken : '••••••••••••••••••••••••••••••••'}
+                        </code>
+                        <button onClick={() => setShowToken(!showToken)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+                          {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => copyToClipboard(newToken, 'token')} className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg">
+                          {copied === 'token' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-slate-200 flex justify-end">
+                <button onClick={closeModal} className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

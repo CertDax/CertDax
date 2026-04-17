@@ -68,6 +68,7 @@ export interface DeploymentTarget {
   id: number;
   name: string;
   hostname: string;
+  os_type: string;
   deploy_path: string;
   reload_command: string | null;
   pre_deploy_script: string | null;
@@ -95,6 +96,7 @@ export interface AgentCertificate {
   expires_at: string | null;
   auto_deploy: boolean;
   deploy_format: string;
+  deployment_status: string | null;
   created_at: string;
 }
 
@@ -104,6 +106,9 @@ export interface AgentDetail extends DeploymentTarget {
   deployment_count: number;
   deployed_count: number;
   failed_count: number;
+  recent_logs: string[];
+  pending_removal_cert_ids: number[];
+  pending_removal_ss_ids: number[];
 }
 
 export interface CertificateDeployment {

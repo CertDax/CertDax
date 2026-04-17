@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Monitor,
   X,
+  Search,
 } from 'lucide-react';
 import api from '../services/api';
 import type { AgentGroupInfo } from '../types';
@@ -16,6 +17,7 @@ export default function AgentGroups() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<AgentGroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterName, setFilterName] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -149,13 +151,35 @@ export default function AgentGroups() {
 
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
-        {groups.length === 0 ? (
+        {/* Search bar */}
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+              placeholder="Search group name..."
+              className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none bg-white"
+            />
+          </div>
+        </div>
+        {(() => {
+          const q = filterName.toLowerCase();
+          const filtered = groups.filter((g) => !q || g.name.toLowerCase().includes(q) || (g.description ?? '').toLowerCase().includes(q));
+          return filtered.length === 0 && groups.length > 0 ? (
+            <div className="px-6 py-12 text-center text-slate-400">
+              <Search className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+              <p className="font-medium">No groups match your search</p>
+              <button onClick={() => setFilterName('')} className="text-sm text-teal-600 hover:underline mt-1">Clear search</button>
+            </div>
+          ) : groups.length === 0 ? (
           <div className="px-6 py-12 text-center text-slate-400">
             <FolderTree className="w-10 h-10 mx-auto mb-2 text-slate-300" />
             <p>No agent groups yet</p>
             <p className="text-sm mt-1">Create a group to bundle agents</p>
           </div>
-        ) : (
+          ) : (
           <div className="overflow-x-auto">
           <table className="w-full min-w-[500px]">
             <thead className="bg-slate-50 border-b border-slate-200">
@@ -168,7 +192,7 @@ export default function AgentGroups() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {groups.map((g) => (
+              {filtered.map((g) => (
                 <tr
                   key={g.id}
                   className="hover:bg-slate-50 cursor-pointer"
@@ -211,7 +235,8 @@ export default function AgentGroups() {
             </tbody>
           </table>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

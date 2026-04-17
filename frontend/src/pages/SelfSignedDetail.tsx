@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -41,6 +42,10 @@ export default function SelfSignedDetail() {
   const [renewing, setRenewing] = useState(false);
   const [showRenewModal, setShowRenewModal] = useState(false);
   const [renewDays, setRenewDays] = useState(365);
+  const [renewCodeSigning, setRenewCodeSigning] = useState(false);
+  const [editingAutoRenew, setEditingAutoRenew] = useState(false);
+  const [autoRenewForm, setAutoRenewForm] = useState({ auto_renew: false, renewal_threshold_days: '' });
+  const [savingAutoRenew, setSavingAutoRenew] = useState(false);
   const [deleteError, setDeleteError] = useState<{ agents: string[]; deployment_count: number } | null>(null);
   const [signedCerts, setSignedCerts] = useState<SelfSignedCertificate[]>([]);
 
@@ -124,10 +129,30 @@ export default function SelfSignedDetail() {
     }
   };
 
-  const handleRenew = async () => {
-    setRenewing(true);
+  const handleSaveAutoRenew = async () => {
+    setSavingAutoRenew(true);
     try {
-      await api.post(`/self-signed/${id}/renew?validity_days=${renewDays}`);
+      const params = new URLSearchParams({ auto_renew: String(autoRenewForm.auto_renew) });
+      if (autoRenewForm.auto_renew && autoRenewForm.renewal_threshold_days) {
+        params.set('renewal_threshold_days', autoRenewForm.renewal_threshold_days);
+      } else if (autoRenewForm.auto_renew && !autoRenewForm.renewal_threshold_days) {
+        params.set('clear_threshold', 'true');
+      }
+      await api.patch(`/self-signed/${id}?${params}`);
+      setEditingAutoRenew(false);
+      fetchCert();
+    } catch {
+      // error handling via interceptor
+    } finally {
+      setSavingAutoRenew(false);
+    }
+  };
+
+  const handleRenew = async () => {    setRenewing(true);
+    try {
+      const params = new URLSearchParams({ validity_days: String(renewDays) });
+      if (cert?.is_ca && renewCodeSigning) params.set('include_code_signing', 'true');
+      await api.post(`/self-signed/${id}/renew?${params}`);
       setShowRenewModal(false);
       fetchCert();
     } catch {
@@ -153,68 +178,77 @@ export default function SelfSignedDetail() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-4 mb-8">
-        <Link
-          to="/self-signed"
-          className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-slate-600" />
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            {cert.is_ca ? (
-              <Building2 className="w-6 h-6 text-amber-600" />
-            ) : (
-              <FileLock2 className="w-6 h-6 text-amber-500" />
-            )}
-            {cert.common_name}
-            <span className="text-sm text-slate-400 font-mono font-normal">ID: {cert.id}</span>
-          </h1>
-          <p className="text-slate-500 mt-1">
-            Self-Signed {cert.is_ca ? 'CA ' : ''}Certificate
-            {cert.organization && ` — ${cert.organization}`}
-          </p>
-          {cert.created_by_username && (
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-              <User className="w-3 h-3" />
-              Created by {cert.created_by_username}
-            </p>
-          )}
-          {cert.modified_by_username && (
-            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-              <User className="w-3 h-3" />
-              Modified by {cert.modified_by_username}
-              {cert.updated_at && (
-                <span className="ml-1">
-                  op {new Date(cert.updated_at).toLocaleString()}
-                </span>
-              )}
-            </p>
-          )}
-        </div>
-        {cert.is_ca && (
-          <button
-            onClick={() => navigate(`/self-signed?ca=${cert.id}`)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+      <div className="mb-8">
+        <div className="flex items-start gap-4">
+          <Link
+            to="/self-signed"
+            className="p-2 rounded-lg hover:bg-slate-200 transition-colors mt-1 flex-shrink-0"
           >
-            <FileLock2 className="w-4 h-4" />
-            Sign certificate
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3 flex-wrap">
+              {cert.is_ca ? (
+                <Building2 className="w-6 h-6 text-amber-600 flex-shrink-0" />
+              ) : (
+                <FileLock2 className="w-6 h-6 text-amber-500 flex-shrink-0" />
+              )}
+              <span className="break-all">{cert.common_name}</span>
+              <span className="text-sm text-slate-400 font-mono font-normal">ID: {cert.id}</span>
+            </h1>
+            <p className="text-slate-500 mt-1">
+              Self-Signed {cert.is_ca ? 'CA ' : ''}Certificate
+              {cert.organization && ` — ${cert.organization}`}
+            </p>
+            {cert.created_by_username && (
+              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                Created by {cert.created_by_username}
+              </p>
+            )}
+            {cert.modified_by_username && (
+              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                <User className="w-3 h-3" />
+                Modified by {cert.modified_by_username}
+                {cert.updated_at && (
+                  <span className="ml-1">
+                    op {new Date(cert.updated_at).toLocaleString()}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3 mt-4 ml-11">
+          {cert.is_ca && (
+            <button
+              onClick={() => navigate(`/self-signed?ca=${cert.id}`)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+            >
+              <FileLock2 className="w-4 h-4" />
+              Sign certificate
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setRenewDays(cert.validity_days);
+              const currentEku: string[] = parsedDetails?.certificate?.extensions?.extended_key_usage ?? [];
+              setRenewCodeSigning(currentEku.includes('codeSigning'));
+              setShowRenewModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Renew
           </button>
-        )}
-        <button
-          onClick={() => { setRenewDays(cert.validity_days); setShowRenewModal(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Renew
-        </button>
-        <button
-          onClick={() => handleDelete()}
-          className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete
-        </button>
+          <button
+            onClick={() => handleDelete()}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
       </div>
 
       {deleteError && (
@@ -281,19 +315,85 @@ export default function SelfSignedDetail() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center gap-3 text-slate-500 mb-2">
-            <RefreshCw className="w-5 h-5" />
-            <span className="text-sm font-medium">Auto-Renewal</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 text-slate-500">
+              <RefreshCw className="w-5 h-5" />
+              <span className="text-sm font-medium">Auto-Renewal</span>
+            </div>
+            {!editingAutoRenew && (
+              <button
+                onClick={() => {
+                  setAutoRenewForm({
+                    auto_renew: cert.auto_renew,
+                    renewal_threshold_days: cert.renewal_threshold_days ? String(cert.renewal_threshold_days) : '',
+                  });
+                  setEditingAutoRenew(true);
+                }}
+                className="text-xs text-amber-600 hover:text-amber-700 font-medium"
+              >
+                Edit
+              </button>
+            )}
           </div>
-          <p className="text-lg font-semibold text-slate-900">
-            {cert.auto_renew ? 'On' : 'Off'}
-          </p>
-          {cert.auto_renew && (
-            <p className="text-sm text-slate-500 mt-1">
-              {cert.renewal_threshold_days
-                ? `${cert.renewal_threshold_days} days before expiry`
-                : 'System default (30 days)'}
-            </p>
+          {editingAutoRenew ? (
+            <div className="space-y-3 mt-1">
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoRenewForm.auto_renew}
+                    onChange={(e) => setAutoRenewForm({ ...autoRenewForm, auto_renew: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+                <span className="text-sm font-medium text-slate-700">{autoRenewForm.auto_renew ? 'On' : 'Off'}</span>
+              </div>
+              {autoRenewForm.auto_renew && (
+                <div>
+                  <label className="block text-xs text-slate-500 mb-1">Days before expiry</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={autoRenewForm.renewal_threshold_days}
+                    onChange={(e) => setAutoRenewForm({ ...autoRenewForm, renewal_threshold_days: e.target.value })}
+                    placeholder="30 (system default)"
+                    className="w-full px-2 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                  />
+                </div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveAutoRenew}
+                  disabled={savingAutoRenew}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-medium hover:bg-amber-600 disabled:opacity-50"
+                >
+                  {savingAutoRenew ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditingAutoRenew(false)}
+                  disabled={savingAutoRenew}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-lg font-semibold text-slate-900">
+                {cert.auto_renew ? 'On' : 'Off'}
+              </p>
+              {cert.auto_renew && (
+                <p className="text-sm text-slate-500 mt-1">
+                  {cert.renewal_threshold_days
+                    ? `${cert.renewal_threshold_days} days before expiry`
+                    : 'System default (30 days)'}
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -375,27 +475,73 @@ export default function SelfSignedDetail() {
         </div>
       )}
 
-      {/* OIDs */}
+      {/* Extended Key Usage / OIDs */}
       {(() => {
         const customOids: OidEntry[] = cert.custom_oids ? JSON.parse(cert.custom_oids) : [];
-        return customOids.length > 0 ? (
+
+        type EkuEntry = { oid: string; label: string; custom?: boolean };
+
+        // Map OID dotted string → friendly name and reverse
+        const knownByOid: Record<string, string> = {
+          '1.3.6.1.5.5.7.3.1': 'serverAuth',
+          '1.3.6.1.5.5.7.3.2': 'clientAuth',
+          '1.3.6.1.5.5.7.3.3': 'codeSigning',
+          '1.3.6.1.5.5.7.3.4': 'emailProtection',
+          '1.3.6.1.5.5.7.3.8': 'timeStamping',
+          '1.3.6.1.5.5.7.3.9': 'OCSPSigning',
+        };
+        const knownByName: Record<string, string> = Object.fromEntries(
+          Object.entries(knownByOid).map(([oid, name]) => [name, oid])
+        );
+
+        // Default OIDs (always present regardless of user choice)
+        const defaultOids = new Set(['1.3.6.1.5.5.7.3.1', '1.3.6.1.5.5.7.3.2']);
+
+        let effectiveEku: EkuEntry[];
+
+        // Prefer the parsed X.509 EKU (ground truth from the actual certificate)
+        const parsedEku: string[] | undefined = parsedDetails?.certificate?.extensions?.extended_key_usage;
+        if (parsedEku && parsedEku.length > 0) {
+          effectiveEku = parsedEku.map((name) => {
+            const oid = knownByName[name] ?? name;
+            return { oid, label: knownByOid[oid] ?? name, custom: !defaultOids.has(oid) };
+          });
+        } else {
+          // Fallback: reconstruct from defaults + custom_oids (cert not yet parsed)
+          effectiveEku = [
+            { oid: '1.3.6.1.5.5.7.3.1', label: 'serverAuth' },
+            { oid: '1.3.6.1.5.5.7.3.2', label: 'clientAuth' },
+          ];
+          const seenOids = new Set(effectiveEku.map((e) => e.oid));
+          for (const o of customOids) {
+            if (!seenOids.has(o.oid)) {
+              seenOids.add(o.oid);
+              effectiveEku.push({ oid: o.oid, label: knownByOid[o.oid] ?? o.value ?? o.oid, custom: true });
+            }
+          }
+        }
+
+        return (
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
               <Tag className="w-5 h-5" />
-              Object Identifiers (OID)
+              Extended Key Usage (OID)
             </h2>
             <div className="space-y-2">
-              {customOids.map((oid, i) => (
+              {effectiveEku.map((entry, i) => (
                 <div key={i} className="flex items-center gap-3 text-sm">
                   <span className="font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded">
-                    {oid.oid}
+                    {entry.oid}
                   </span>
-                  <span className="text-slate-600">{oid.value}</span>
+                  <span className="text-slate-600">{entry.label}</span>
+                  {!entry.custom && (
+                    <span className="text-xs text-slate-400 italic">default</span>
+                  )}
                 </div>
               ))}
             </div>
           </div>
-        ) : null;
+        );
       })()}
 
       {/* Signed Certificates (for CA certs) */}
@@ -613,6 +759,20 @@ export default function SelfSignedDetail() {
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
             />
             <p className="text-xs text-slate-500 mt-1">Between 1 and 3650 days</p>
+            {cert?.is_ca && (
+              <div className="flex items-center gap-3 mt-4">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={renewCodeSigning}
+                    onChange={(e) => setRenewCodeSigning(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+                <span className="text-sm font-medium text-slate-700">Code Signing <span className="font-mono text-xs text-slate-500">(1.3.6.1.5.5.7.3.3)</span></span>
+              </div>
+            )}
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowRenewModal(false)}
@@ -639,7 +799,7 @@ export default function SelfSignedDetail() {
 
 /* ---------- helper components ---------- */
 
-function DetailRow({ label, value, mono }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function DetailRow({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   if (!value) return null;
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-1 py-2 border-b border-slate-100 last:border-0">

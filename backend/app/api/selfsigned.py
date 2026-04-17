@@ -2,10 +2,12 @@ import io
 import json
 import zipfile
 from datetime import datetime, timedelta, timezone
+from typing import cast
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
+from cryptography.hazmat.primitives.asymmetric.types import CertificateIssuerPrivateKeyTypes, CertificateIssuerPublicKeyTypes
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -61,6 +63,10 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
         name_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, req.locality))
     if req.custom_oids:
         for oid_entry in req.custom_oids:
+            # EKU OIDs (1.3.6.1.5.5.7.3.*) must NOT be added to the Subject DN —
+            # they belong in the ExtendedKeyUsage extension only.
+            if oid_entry.oid.startswith("1.3.6.1.5.5.7.3."):
+                continue
             oid_obj = x509.ObjectIdentifier(oid_entry.oid)
             name_attrs.append(x509.NameAttribute(oid_obj, oid_entry.value))
 
@@ -135,23 +141,30 @@ def _generate_self_signed(req: SelfSignedRequest) -> tuple[str, str]:
         if req.custom_oids:
             for e in req.custom_oids:
                 if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
-                    eku_list.append(x509.ObjectIdentifier(e.oid))
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in eku_list:
+                        eku_list.append(oid)
         builder = builder.add_extension(
             x509.ExtendedKeyUsage(eku_list), critical=False,
         )
 
-    # Custom EKU OIDs for CA certificates (no default EKU added above)
-    if req.is_ca and req.custom_oids:
-        eku_oids = [
-            e for e in req.custom_oids
-            if e.oid.startswith("1.3.6.1.5.5.7.3.")
-            or e.oid.startswith("1.3.6.1.4.1.")
+    # EKU for CA certificates.
+    # CODE_SIGNING is only included when the user explicitly opts in (via custom_oids),
+    # e.g. when this CA is used to sign certificates for the Windows Agent.
+    if req.is_ca:
+        ca_eku: list[x509.ObjectIdentifier] = [
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH,
         ]
-        if eku_oids:
-            eku_list = [x509.ObjectIdentifier(e.oid) for e in eku_oids]
-            builder = builder.add_extension(
-                x509.ExtendedKeyUsage(eku_list), critical=False,
-            )
+        if req.custom_oids:
+            for e in req.custom_oids:
+                if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in ca_eku:
+                        ca_eku.append(oid)
+        builder = builder.add_extension(
+            x509.ExtendedKeyUsage(ca_eku), critical=False,
+        )
 
     # Subject Key Identifier
     builder = builder.add_extension(
@@ -212,6 +225,10 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
         name_attrs.append(x509.NameAttribute(NameOID.LOCALITY_NAME, req.locality))
     if req.custom_oids:
         for oid_entry in req.custom_oids:
+            # EKU OIDs (1.3.6.1.5.5.7.3.*) must NOT be added to the Subject DN —
+            # they belong in the ExtendedKeyUsage extension only.
+            if oid_entry.oid.startswith("1.3.6.1.5.5.7.3."):
+                continue
             oid_obj = x509.ObjectIdentifier(oid_entry.oid)
             name_attrs.append(x509.NameAttribute(oid_obj, oid_entry.value))
 
@@ -290,23 +307,28 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
         if req.custom_oids:
             for e in req.custom_oids:
                 if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
-                    eku_list.append(x509.ObjectIdentifier(e.oid))
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in eku_list:
+                        eku_list.append(oid)
         builder = builder.add_extension(
             x509.ExtendedKeyUsage(eku_list), critical=False,
         )
 
-    # Custom EKU OIDs for CA certificates (no default EKU added above)
-    if req.is_ca and req.custom_oids:
-        eku_oids = [
-            e for e in req.custom_oids
-            if e.oid.startswith("1.3.6.1.5.5.7.3.")
-            or e.oid.startswith("1.3.6.1.4.1.")
+    # EKU for CA certificates — CODE_SIGNING only when explicitly requested via custom_oids.
+    if req.is_ca:
+        ca_eku_renew: list[x509.ObjectIdentifier] = [
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH,
         ]
-        if eku_oids:
-            eku_list = [x509.ObjectIdentifier(e.oid) for e in eku_oids]
-            builder = builder.add_extension(
-                x509.ExtendedKeyUsage(eku_list), critical=False,
-            )
+        if req.custom_oids:
+            for e in req.custom_oids:
+                if e.oid.startswith("1.3.6.1.5.5.7.3.") or e.oid.startswith("1.3.6.1.4.1."):
+                    oid = x509.ObjectIdentifier(e.oid)
+                    if oid not in ca_eku_renew:
+                        ca_eku_renew.append(oid)
+        builder = builder.add_extension(
+            x509.ExtendedKeyUsage(ca_eku_renew), critical=False,
+        )
 
     # Subject Key Identifier
     builder = builder.add_extension(
@@ -316,12 +338,12 @@ def _generate_ca_signed(req: SelfSignedRequest, ca_cert_pem: str, ca_key_pem: st
 
     # Authority Key Identifier (from CA's public key)
     builder = builder.add_extension(
-        x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_cert.public_key()),
+        x509.AuthorityKeyIdentifier.from_issuer_public_key(cast(CertificateIssuerPublicKeyTypes, ca_cert.public_key())),
         critical=False,
     )
 
     # Sign with the CA's private key
-    cert = builder.sign(ca_key, hash_alg)
+    cert = builder.sign(cast(CertificateIssuerPrivateKeyTypes, ca_key), hash_alg)  # type: ignore[arg-type]
 
     cert_pem = cert.public_bytes(serialization.Encoding.PEM).decode()
     key_pem = private_key.private_bytes(
@@ -410,8 +432,10 @@ def create_self_signed(
 
     # Generate
     if ca_record:
-        ca_key_pem = decrypt(ca_record.private_key_pem_encrypted)
-        cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)
+        assert ca_record.private_key_pem_encrypted is not None  # guarded by check above
+        assert ca_record.certificate_pem is not None  # guarded by check above
+        ca_key_pem = decrypt(ca_record.private_key_pem_encrypted)  # type: ignore[arg-type]
+        cert_pem, key_pem = _generate_ca_signed(req, ca_record.certificate_pem, ca_key_pem)  # type: ignore[arg-type]
     else:
         cert_pem, key_pem = _generate_self_signed(req)
 
@@ -469,6 +493,40 @@ def create_self_signed(
     resp.created_by_username = user.display_name or user.username
     if ca_record:
         resp.signed_by_ca_name = ca_record.common_name
+    return resp
+
+
+@router.patch("/{cert_id}", response_model=SelfSignedResponse, summary="Update certificate settings")
+def update_self_signed(
+    cert_id: int,
+    auto_renew: bool | None = Query(default=None),
+    renewal_threshold_days: int | None = Query(default=None, ge=1, le=365),
+    clear_threshold: bool = Query(default=False, description="Set renewal_threshold_days to null (use system default)"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Update mutable settings of an existing certificate (auto-renewal on/off, threshold)."""
+    cert = db.query(SelfSignedCertificate).filter(
+        SelfSignedCertificate.id == cert_id,
+        SelfSignedCertificate.group_id.in_(visible_group_ids(db, user, "self_signed")),
+    ).first()
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+
+    if auto_renew is not None:
+        cert.auto_renew = auto_renew
+    if clear_threshold:
+        cert.renewal_threshold_days = None
+    elif renewal_threshold_days is not None:
+        cert.renewal_threshold_days = renewal_threshold_days
+    cert.modified_by_user_id = user.id
+    cert.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(cert)
+
+    resp = SelfSignedResponse.model_validate(cert)
+    resp.created_by_username = _get_username(db, cert.created_by_user_id)
+    resp.modified_by_username = _get_username(db, cert.modified_by_user_id)
     return resp
 
 
@@ -571,6 +629,7 @@ def delete_self_signed(
 def renew_self_signed(
     cert_id: int,
     validity_days: int | None = Query(None, ge=1, le=3650, description="Override validity period in days (defaults to original value)"),
+    include_code_signing: bool = Query(default=False, description="Add Code Signing EKU (1.3.6.1.5.5.7.3.3) to the renewed CA certificate"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -585,7 +644,22 @@ def renew_self_signed(
 
     # Reconstruct the request from existing record
     san_list = json.loads(cert.san_domains) if cert.san_domains else None
-    oid_list = [OidEntry(**o) for o in json.loads(cert.custom_oids)] if cert.custom_oids else None
+    oid_list = [OidEntry(**o) for o in json.loads(cert.custom_oids)] if cert.custom_oids else []
+
+    # Optionally add Code Signing EKU for CA certs
+    CODE_SIGNING_OID = "1.3.6.1.5.5.7.3.3"
+    if include_code_signing and cert.is_ca:
+        if not any(o.oid == CODE_SIGNING_OID for o in oid_list):
+            oid_list.append(OidEntry(oid=CODE_SIGNING_OID, value="codeSigning"))
+        # Persist the updated OID list so future renewals keep it
+        cert.custom_oids = json.dumps([o.model_dump() for o in oid_list])
+    elif not include_code_signing and cert.is_ca:
+        # Remove codeSigning if user explicitly opted out
+        removed = [o for o in oid_list if o.oid != CODE_SIGNING_OID]
+        if len(removed) != len(oid_list):
+            oid_list = removed
+            cert.custom_oids = json.dumps([o.model_dump() for o in oid_list]) if oid_list else None
+
     req = SelfSignedRequest(
         common_name=cert.common_name,
         san_domains=san_list,
@@ -598,7 +672,7 @@ def renew_self_signed(
         key_size=cert.key_size,
         validity_days=effective_days,
         is_ca=cert.is_ca,
-        custom_oids=oid_list,
+        custom_oids=oid_list if oid_list else None,
     )
 
     # If originally signed by a CA, re-sign with the same CA
@@ -711,7 +785,8 @@ def download_self_signed_zip(
     if not cert or not cert.certificate_pem:
         raise HTTPException(status_code=404, detail="Certificate not found")
 
-    key_pem = decrypt(cert.private_key_pem_encrypted)
+    assert cert.private_key_pem_encrypted is not None
+    key_pem = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
     if password:
         from cryptography.hazmat.primitives.serialization import BestAvailableEncryption
         key_obj = serialization.load_pem_private_key(key_pem.encode(), password=None)
@@ -760,7 +835,8 @@ def download_self_signed_pem(
         content = cert.certificate_pem
         filename = f"{safe_name}.crt"
     elif file_type == "privatekey":
-        content = decrypt(cert.private_key_pem_encrypted)
+        assert cert.private_key_pem_encrypted is not None
+        content = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
         if password:
             from cryptography.hazmat.primitives.serialization import BestAvailableEncryption
             key_obj = serialization.load_pem_private_key(content.encode(), password=None)
@@ -771,7 +847,8 @@ def download_self_signed_pem(
             ).decode()
         filename = f"{safe_name}.key"
     elif file_type == "combined":
-        key_pem = decrypt(cert.private_key_pem_encrypted)
+        assert cert.private_key_pem_encrypted is not None
+        key_pem = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
         content = key_pem + "\n" + cert.certificate_pem
         filename = f"{safe_name}-combined.pem"
     elif file_type == "chain":
@@ -815,7 +892,7 @@ def download_self_signed_pfx(
     if not cert or not cert.certificate_pem:
         raise HTTPException(status_code=404, detail="Certificate not found")
 
-    key_pem = decrypt(cert.private_key_pem_encrypted)
+    key_pem = decrypt(cert.private_key_pem_encrypted)  # type: ignore[arg-type]
     key_obj = serialization.load_pem_private_key(key_pem.encode(), password=None)
     cert_obj = x509.load_pem_x509_certificate(cert.certificate_pem.encode())
 
@@ -829,7 +906,7 @@ def download_self_signed_pfx(
     pfx_password = password.encode() if password else None
     pfx_data = pkcs12.serialize_key_and_certificates(
         name=cert.common_name.encode(),
-        key=key_obj,
+        key=cast(CertificateIssuerPrivateKeyTypes, key_obj),
         cert=cert_obj,
         cas=ca_certs,
         encryption_algorithm=(

@@ -30,7 +30,7 @@ def list_users(
 ):
     users = db.query(User).all()
     result = []
-    groups_cache: dict[int, str] = {}
+    groups_cache: dict[int, str | None] = {}
     for u in users:
         group_name = None
         if u.group_id:
@@ -239,7 +239,7 @@ def list_group_shares(
         raise HTTPException(status_code=404, detail="Group not found")
 
     shares = db.query(GroupShare).filter(GroupShare.owner_group_id == group_id).all()
-    groups_cache: dict[int, str] = {}
+    groups_cache: dict[int, str | None] = {}
 
     def _name(gid: int) -> str | None:
         if gid not in groups_cache:

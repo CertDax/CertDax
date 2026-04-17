@@ -13,11 +13,18 @@ const statusFilters = [
   { value: 'error', label: 'Error' },
 ];
 
+const challengeFilters = [
+  { value: '', label: 'All types' },
+  { value: 'http-01', label: 'HTTP' },
+  { value: 'dns-01', label: 'DNS' },
+];
+
 export default function Certificates() {
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [challengeFilter, setChallengeFilter] = useState('');
 
   const fetchCertificates = () => {
     const params: Record<string, string> = {};
@@ -39,6 +46,10 @@ export default function Certificates() {
     fetchCertificates();
   };
 
+  const displayed = challengeFilter
+    ? certificates.filter((c) => c.challenge_type === challengeFilter)
+    : certificates;
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
@@ -58,8 +69,8 @@ export default function Certificates() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <form onSubmit={handleSearch} className="flex-1">
+      <div className="flex flex-col gap-3 mb-6">
+        <form onSubmit={handleSearch}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
@@ -86,6 +97,20 @@ export default function Certificates() {
               {f.label}
             </button>
           ))}
+          <span className="text-slate-300">|</span>
+          {challengeFilters.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setChallengeFilter(f.value)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                challengeFilter === f.value
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -94,22 +119,31 @@ export default function Certificates() {
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500" />
         </div>
-      ) : certificates.length > 0 ? (
+      ) : displayed.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {certificates.map((cert) => (
+          {displayed.map((cert) => (
             <CertificateCard key={cert.id} cert={cert} />
           ))}
         </div>
       ) : (
         <div className="text-center py-16 bg-white rounded-xl border border-slate-200">
           <p className="text-slate-400 text-lg">No certificates found</p>
-          <Link
-            to="/certificates/new"
-            className="inline-flex items-center gap-2 mt-4 text-emerald-600 font-medium hover:text-emerald-700"
-          >
-            <Plus className="w-4 h-4" />
-            Request your first certificate
-          </Link>
+          {certificates.length > 0 ? (
+            <button
+              onClick={() => { setStatusFilter(''); setChallengeFilter(''); }}
+              className="inline-flex items-center gap-2 mt-4 text-emerald-600 font-medium hover:text-emerald-700"
+            >
+              Clear filters
+            </button>
+          ) : (
+            <Link
+              to="/certificates/new"
+              className="inline-flex items-center gap-2 mt-4 text-emerald-600 font-medium hover:text-emerald-700"
+            >
+              <Plus className="w-4 h-4" />
+              Request your first certificate
+            </Link>
+          )}
         </div>
       )}
     </div>

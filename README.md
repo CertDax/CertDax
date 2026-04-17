@@ -4,6 +4,57 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
 
 ![CertDax Dashboard](docs/dashboard.png)
 
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Quick Start (Docker Compose)](#quick-start-docker-compose)
+- [Development Setup](#development-setup)
+- [First Use](#first-use)
+- [Environment Variables](#environment-variables)
+- [Linux Deploy Agent](#linux-deploy-agent)
+  - [Quick Install](#quick-install)
+  - [Manual Installation](#manual-installation)
+  - [Usage Without Config File](#usage-without-config-file)
+  - [Building From Source](#building-from-source)
+- [Windows Deploy Agent](#windows-deploy-agent)
+  - [Prerequisites](#prerequisites)
+  - [Quick Install — PowerShell One-Liner (Recommended)](#quick-install--powershell-one-liner-recommended)
+  - [Manual Installation](#manual-installation-1)
+  - [Managing the Service](#managing-the-service)
+  - [Alternative Install Methods](#alternative-install-methods)
+  - [SmartScreen & Code Signing](#smartscreen--code-signing)
+  - [Certificate Deployment Path](#certificate-deployment-path)
+- [Kubernetes Operator](#kubernetes-operator)
+  - [Installation](#installation)
+  - [Deploy an Existing Certificate](#deploy-an-existing-certificate)
+  - [Request a Self-Signed Certificate via YAML](#request-a-self-signed-certificate-via-yaml)
+  - [Request a CA-Signed Certificate via YAML](#request-a-ca-signed-certificate-via-yaml)
+  - [Request an ACME Certificate via YAML](#request-an-acme-certificate-via-yaml)
+  - [Request a Self-Signed CA Certificate via YAML](#request-a-self-signed-ca-certificate-via-yaml)
+  - [Request Block Fields](#request-block-fields)
+- [DNS Provider Configuration](#dns-provider-configuration)
+  - [Cloudflare](#cloudflare)
+  - [TransIP](#transip)
+  - [Hetzner](#hetzner)
+  - [DigitalOcean](#digitalocean)
+  - [Vultr](#vultr)
+  - [OVH](#ovh)
+  - [AWS Route 53](#aws-route-53)
+  - [Google Cloud DNS](#google-cloud-dns)
+  - [Manual](#manual)
+- [Reverse Proxy](#reverse-proxy)
+  - [Nginx](#nginx)
+  - [Apache2](#apache2)
+  - [HAProxy](#haproxy)
+- [API Endpoints](#api-endpoints)
+  - [Self-Signed Certificate API Examples](#self-signed-certificate-api-examples)
+- [Scaling (Docker Swarm / Kubernetes)](#scaling-docker-swarm--kubernetes)
+  - [Requirements for multi-node](#requirements-for-multi-node)
+  - [Docker Swarm example](#docker-swarm-example)
+  - [Kubernetes](#kubernetes)
+- [Security](#security)
+
 ## Features
 
 - **Dashboard** — Overview of all certificates with status, expiry timeline, and statistics
@@ -89,7 +140,7 @@ Open http://localhost:5173 in your browser.
 4. Go to **Providers** and add a DNS provider (e.g. Cloudflare) and/or Certificate Authority
 5. Go to **Certificates** → **New certificate** and request your first ACME certificate
 6. Go to **Self-Signed** to generate internal certificates or create a CA
-7. (Optional) Set up **Agents** and install the deploy agent on your servers
+7. (Optional) Set up **Agents** and install the deploy agent on your servers — see [Linux](#linux-deploy-agent) or [Windows](#windows-deploy-agent)
 8. (Optional) Go to **API** to create API keys for scripting and automation
 
 ## Environment Variables
@@ -110,9 +161,9 @@ Open http://localhost:5173 in your browser.
 | `AGENT_BINARIES_DIR` | No | `agent-dist` | Directory containing agent binaries |
 | `DEBUG` | No | `false` | Enable Swagger/OpenAPI docs at `/docs` and `/redoc` |
 
-## Deploy Agent
+## Linux Deploy Agent
 
-The deploy agent is a statically compiled Go binary that runs on any Linux distribution without dependencies. Available for **amd64**, **arm64**, **arm** and **386** architectures.
+The deploy agent is a statically compiled Go binary that runs on any Linux distribution without dependencies. Available for **amd64**, **arm64**, **arm** and **386** architectures. A [Windows agent](#windows-deploy-agent) is also available (see below).
 
 ### Quick Install
 
@@ -168,6 +219,139 @@ make build
 # Binaries are in dist/
 ls -la dist/
 ```
+
+## Windows Deploy Agent
+
+The Windows agent is the same statically compiled Go binary, packaged for Windows. Available for **x64 (amd64)**, **ARM64**, and **x86 (32-bit)** architectures.
+
+### Prerequisites
+
+- Windows 10 / Windows Server 2016 or later
+- PowerShell 5.1 or later (pre-installed on all supported Windows versions)
+- An elevated (Administrator) PowerShell session
+
+### Quick Install — PowerShell One-Liner (Recommended)
+
+The easiest way is to use the PowerShell one-liner from the CertDax UI:
+
+1. Go to **Agents** in the CertDax dashboard
+2. Click **Add agent** and select **Windows** as the OS type
+3. Select a **Self-Signed CA** to code-sign the agent binary (this suppresses SmartScreen warnings)
+4. Fill in the agent name and hostname, then click **Create**
+5. Click the **Install** button on the newly created agent
+6. Copy the PowerShell one-liner and run it in an **elevated PowerShell** session on the target machine
+
+```powershell
+# Example (actual command comes from the UI with a pre-embedded token):
+iwr -useb "https://certdax.example.com/api/agents/1/install/windows-script?ca_id=1&token=..." | iex
+```
+
+The script will:
+- Automatically detect the CPU architecture (amd64 / ARM64 / x86)
+- Download and verify the signed agent binary
+- Install it to `C:\ProgramData\CertDax\certdax-agent.exe`
+- Create the configuration file at `C:\ProgramData\CertDax\config.yaml`
+- Register and start a **Windows Service** (`CertDaxAgent`) set to start automatically
+
+> **Note:** The NSIS setup wizard (`.exe`) installs the binary to `C:\Program Files\CertDax\` instead.
+
+### Manual Installation
+
+If you prefer to install without running a remote script:
+
+**1. Download the binary**
+
+Download `certdax-agent-windows-amd64.exe` (or `arm64` / `386`) from the CertDax UI:
+
+- Go to **Agents** → your agent → **Install** → *Advanced / scripted install options* → **certdax-agent.exe (signed)**
+
+**2. Place the binary**
+
+```powershell
+# Run as Administrator
+New-Item -ItemType Directory -Force "C:\ProgramData\CertDax"
+Move-Item certdax-agent-windows-amd64.exe "C:\ProgramData\CertDax\certdax-agent.exe"
+```
+
+**3. Create the configuration file**
+
+```powershell
+New-Item -ItemType Directory -Force "C:\ProgramData\CertDax"
+
+@"
+api_url: "https://certdax.example.com"
+agent_token: "your-agent-token-here"
+poll_interval: 30
+"@ | Set-Content "C:\ProgramData\CertDax\config.yaml"
+```
+
+The agent token is shown when you create the agent in the UI. You can also retrieve it from **Agents** → your agent → **Token**.
+
+**4. Install as a Windows Service**
+
+```powershell
+# Create the service
+New-Service -Name "CertDaxAgent" `
+            -DisplayName "CertDax Deploy Agent" `
+            -Description "Deploys certificates from CertDax to this machine" `
+            -BinaryPathName '"C:\ProgramData\CertDax\certdax-agent.exe" --config "C:\ProgramData\CertDax\config.yaml"' `
+            -StartupType Automatic
+
+# Start the service
+Start-Service CertDaxAgent
+
+# Verify it is running
+Get-Service CertDaxAgent
+```
+
+### Managing the Service
+
+```powershell
+# View service status
+Get-Service CertDaxAgent
+
+# Stop / Start / Restart
+Stop-Service CertDaxAgent
+Start-Service CertDaxAgent
+Restart-Service CertDaxAgent
+
+# View recent log output (Windows Event Log)
+Get-EventLog -LogName Application -Source CertDaxAgent -Newest 20
+
+# Uninstall
+Stop-Service CertDaxAgent
+Remove-Service CertDaxAgent           # PowerShell 6+ / Windows Server 2019+
+# Or on older systems:
+sc.exe delete CertDaxAgent
+```
+
+### Alternative Install Methods
+
+| Method | When to use |
+|--------|-------------|
+| **PowerShell one-liner** | Interactive install on a single machine — recommended |
+| **Windows Installer (.exe)** | UI-driven wizard; SmartScreen may warn, right-click → Properties → Unblock if needed |
+| **PowerShell script (.ps1)** | Scripted/RMM deployments (e.g. Intune, PDQ, Ansible) |
+| **Manual binary** | Air-gapped or policy-restricted environments |
+
+All options are available in the **Install** modal of each agent in the CertDax dashboard.
+
+### SmartScreen & Code Signing
+
+Binaries downloaded through the browser may be blocked by Windows SmartScreen. The recommended workaround is to use the **PowerShell one-liner**, which downloads the binary directly from PowerShell and bypasses the browser mark-of-the-web. Alternatively:
+
+- Install the **signing CA** as a Trusted Root on the target machine before downloading the binary — SmartScreen will then trust it automatically
+- Right-click the downloaded `.exe` → **Properties** → **Unblock** → **OK**
+
+### Certificate Deployment Path
+
+By default the agent deploys certificates to:
+
+```
+C:\ProgramData\CertDax\certs\
+```
+
+You can change this in the **Deploy path** field when creating the agent in the UI, or directly in `config.yaml`.
 
 ## Kubernetes Operator
 

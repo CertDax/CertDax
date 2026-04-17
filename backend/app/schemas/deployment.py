@@ -5,6 +5,7 @@ from pydantic import BaseModel, field_validator
 class DeploymentTargetCreate(BaseModel):
     name: str
     hostname: str
+    os_type: str = "linux"  # linux or windows
     deploy_path: str = "/etc/ssl/certs"
     reload_command: str | None = None
     pre_deploy_script: str | None = None
@@ -28,6 +29,7 @@ class DeploymentTargetResponse(BaseModel):
     reload_command: str | None = None
     pre_deploy_script: str | None = None
     post_deploy_script: str | None = None
+    os_type: str = "linux"
     status: str
     last_seen: datetime | None = None
     agent_os: str | None = None
@@ -60,6 +62,7 @@ class AgentCertificateResponse(BaseModel):
     expires_at: datetime | None = None
     auto_deploy: bool = True
     deploy_format: str = "crt"
+    deployment_status: str = "pending"
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -76,6 +79,24 @@ class AgentDetailResponse(DeploymentTargetResponse):
     deployment_count: int = 0
     deployed_count: int = 0
     failed_count: int = 0
+    recent_logs: list[str] = []
+    # IDs of certs that still have a pending_removal deployment (agent hasn't confirmed removal yet)
+    pending_removal_cert_ids: list[int] = []
+    pending_removal_ss_ids: list[int] = []
+
+    @field_validator("recent_logs", mode="before")
+    @classmethod
+    def coerce_recent_logs(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            import json
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else []
+            except (ValueError, TypeError):
+                return []
+        return v
 
 
 class AgentCertificateAssign(BaseModel):
@@ -121,6 +142,7 @@ class AgentHeartbeat(BaseModel):
     os: str | None = None
     arch: str | None = None
     version: str | None = None
+    recent_logs: list[str] | None = None
 
 
 class AgentDeploymentStatus(BaseModel):
