@@ -988,6 +988,9 @@ New-Service -Name $ServiceName `
             -DisplayName "CertDax Deploy Agent" `
             -Description "CertDax certificate deployment agent for {target.name}" `
             -StartupType Automatic | Out-Null
+# Configure recovery: restart after 30 s on 1st, 2nd, and subsequent failures.
+# Reset the failure count after 1 day of clean uptime.
+sc.exe failure $ServiceName reset= 86400 actions= restart/30000/restart/30000/restart/30000 | Out-Null
 Start-Service -Name $ServiceName
 Write-Host "   Service '$ServiceName' installed and started." -ForegroundColor Green
 
