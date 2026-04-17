@@ -281,7 +281,8 @@ export default function Providers() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[600px]">
             <thead className="bg-slate-50">
               <tr>
@@ -413,6 +414,7 @@ export default function Providers() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
@@ -609,7 +611,8 @@ export default function Providers() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-clip">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[500px]">
             <thead className="bg-slate-50">
               <tr>
@@ -671,6 +674,7 @@ export default function Providers() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
