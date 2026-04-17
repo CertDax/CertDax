@@ -847,8 +847,10 @@ def download_windows_agent_binary(
     _valid_arches = {"amd64", "arm64", "386"}
     if arch not in _valid_arches:
         raise HTTPException(status_code=400, detail=f"Unsupported arch '{arch}'. Must be one of: {', '.join(sorted(_valid_arches))}")
-    binary_dir = os.path.abspath(settings.AGENT_BINARIES_DIR)
-    windows_binary = os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe")
+    binary_dir = os.path.realpath(os.path.abspath(settings.AGENT_BINARIES_DIR))
+    windows_binary = os.path.realpath(os.path.join(binary_dir, f"certdax-agent-windows-{arch}.exe"))
+    if os.path.commonpath([binary_dir, windows_binary]) != binary_dir:
+        raise HTTPException(status_code=400, detail="Invalid architecture path")
     if not os.path.isfile(windows_binary):
         raise HTTPException(
             status_code=404,
