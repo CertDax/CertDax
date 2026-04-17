@@ -57,8 +57,11 @@ func setupLogging() func() {
 		return func() {}
 	}
 
-	// Write to both the log file and stderr (stderr is visible in sc.exe debug runs)
-	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	// In service mode os.Stderr has no console and its Write() may fail.
+	// io.MultiWriter returns on the first writer error, so if Stderr is listed
+	// first the file never gets written. Write to the file only on Windows;
+	// when running interactively the user can tail the log file instead.
+	log.SetOutput(f)
 	log.Printf("[INFO] Logging to %s", logPath)
 
 	return func() { f.Close() }
