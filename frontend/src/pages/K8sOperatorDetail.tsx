@@ -41,6 +41,7 @@ export default function K8sOperatorDetailPage() {
   const [newToken, setNewToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState('');
+  const [patchShell, setPatchShell] = useState<'bash' | 'powershell'>('bash');
   const [autoScroll, setAutoScroll] = useState(true);
   const [showSetupGuide, setShowSetupGuide] = useState<boolean | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -299,15 +300,36 @@ export default function K8sOperatorDetailPage() {
             </button>
           </div>
           <div className="mt-3">
-            <p className="text-xs font-medium text-amber-700 mb-1">Apply to Kubernetes:</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-medium text-amber-700">Apply to Kubernetes:</p>
+              <div className="flex rounded-md overflow-hidden border border-amber-300 text-xs">
+                <button
+                  onClick={() => setPatchShell('bash')}
+                  className={`px-2.5 py-0.5 font-medium transition-colors ${patchShell === 'bash' ? 'bg-amber-200 text-amber-900' : 'bg-white text-amber-600 hover:bg-amber-50'}`}
+                >
+                  Bash
+                </button>
+                <button
+                  onClick={() => setPatchShell('powershell')}
+                  className={`px-2.5 py-0.5 font-medium transition-colors border-l border-amber-300 ${patchShell === 'powershell' ? 'bg-amber-200 text-amber-900' : 'bg-white text-amber-600 hover:bg-amber-50'}`}
+                >
+                  PowerShell
+                </button>
+              </div>
+            </div>
             <div className="relative bg-slate-900 rounded-lg p-3">
               <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
-{`kubectl patch secret certdax-operator-operator-token -n certdax-system \\
-  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\
-kubectl rollout restart deployment certdax-operator -n certdax-system`}
+{patchShell === 'bash'
+  ? `kubectl patch secret certdax-operator-operator-token -n certdax-system \\\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\\nkubectl rollout restart deployment certdax-operator -n certdax-system`
+  : `kubectl patch secret certdax-operator-operator-token -n certdax-system \`\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' \`\nkubectl rollout restart deployment certdax-operator -n certdax-system`}
               </pre>
               <button
-                onClick={() => copyToClipboard(`kubectl patch secret certdax-operator-operator-token -n certdax-system \\\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\\nkubectl rollout restart deployment certdax-operator -n certdax-system`, 'patch-cmd')}
+                onClick={() => copyToClipboard(
+                  patchShell === 'bash'
+                    ? `kubectl patch secret certdax-operator-operator-token -n certdax-system \\\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' && \\\nkubectl rollout restart deployment certdax-operator -n certdax-system`
+                    : `kubectl patch secret certdax-operator-operator-token -n certdax-system \`\n  -p '{"data":{"operator-token":"${btoa(newToken)}"}}' \`\nkubectl rollout restart deployment certdax-operator -n certdax-system`,
+                  'patch-cmd'
+                )}
                 className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
               >
                 {copied === 'patch-cmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
