@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
   FolderTree,
@@ -13,6 +13,7 @@ import api from '../services/api';
 import type { AgentGroupInfo } from '../types';
 
 export default function AgentGroups() {
+  const navigate = useNavigate();
   const [groups, setGroups] = useState<AgentGroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -168,7 +169,11 @@ export default function AgentGroups() {
             </thead>
             <tbody className="divide-y divide-slate-200">
               {groups.map((g) => (
-                <tr key={g.id} className="hover:bg-slate-50">
+                <tr
+                  key={g.id}
+                  className="hover:bg-slate-50 cursor-pointer"
+                  onClick={() => navigate(`/agent-groups/${g.id}`)}
+                >
                   <td className="px-6 py-4">
                     <Link
                       to={`/agent-groups/${g.id}`}
@@ -192,7 +197,10 @@ export default function AgentGroups() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
-                      onClick={() => handleDelete(g.id, g.name)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(g.id, g.name);
+                      }}
                       className="text-red-500 hover:text-red-700 p-1"
                     >
                       <Trash2 className="w-4 h-4" />
