@@ -289,12 +289,6 @@ export default function AgentDetailPage() {
           <p className="text-slate-500 text-sm">{agent.hostname}</p>
         </div>
         <button
-          onClick={handleDelete}
-          className="px-4 py-2 text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium"
-        >
-          Delete
-        </button>
-        <button
           onClick={() => setShowLogsModal(true)}
           className="flex items-center gap-1.5 px-4 py-2 text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 text-sm font-medium"
         >
@@ -305,6 +299,12 @@ export default function AgentDetailPage() {
               {agent.recent_logs.length > 99 ? '99+' : agent.recent_logs.length}
             </span>
           )}
+        </button>
+        <button
+          onClick={handleDelete}
+          className="px-4 py-2 text-red-500 border border-red-200 rounded-lg hover:bg-red-50 text-sm font-medium"
+        >
+          Delete
         </button>
       </div>
 
