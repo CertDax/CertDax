@@ -25,7 +25,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl osslsigncode nsis && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
+RUN pip install --upgrade pip --root-user-action=ignore && \
+    pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
 COPY backend/app/ ./app/
 
