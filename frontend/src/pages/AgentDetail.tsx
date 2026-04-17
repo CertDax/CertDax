@@ -496,17 +496,17 @@ export default function AgentDetailPage() {
             </button>
             <p>Deploy path: <code className="bg-white px-2 py-0.5 rounded text-slate-900">{agent.deploy_path}</code></p>
             {agent.reload_command && (
-              <p className="mt-1">Reload: <code className="bg-white px-2 py-0.5 rounded text-slate-900">{agent.reload_command}</code></p>
+              <p className="mt-1">{agent.os_type === 'windows' ? 'PowerShell command:' : 'Reload:'} <code className="bg-white px-2 py-0.5 rounded text-slate-900">{agent.reload_command}</code></p>
             )}
             {agent.pre_deploy_script && (
               <div className="mt-2">
-                <p className="text-xs font-medium text-slate-500 mb-1">Pre-deploy script:</p>
+                <p className="text-xs font-medium text-slate-500 mb-1">{agent.os_type === 'windows' ? 'Pre-deploy PowerShell script:' : 'Pre-deploy script:'}</p>
                 <pre className="bg-white px-3 py-2 rounded text-xs text-slate-900 whitespace-pre-wrap font-mono">{agent.pre_deploy_script}</pre>
               </div>
             )}
             {agent.post_deploy_script && (
               <div className="mt-2">
-                <p className="text-xs font-medium text-slate-500 mb-1">Post-deploy script:</p>
+                <p className="text-xs font-medium text-slate-500 mb-1">{agent.os_type === 'windows' ? 'Post-deploy PowerShell script:' : 'Post-deploy script:'}</p>
                 <pre className="bg-white px-3 py-2 rounded text-xs text-slate-900 whitespace-pre-wrap font-mono">{agent.post_deploy_script}</pre>
               </div>
             )}
@@ -524,33 +524,42 @@ export default function AgentDetailPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Reload command</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {agent.os_type === 'windows' ? 'PowerShell command after deployment' : 'Reload command'}
+              </label>
               <input
                 type="text"
                 value={editReloadCommand}
                 onChange={(e) => setEditReloadCommand(e.target.value)}
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="e.g. systemctl reload nginx"
+                placeholder={agent.os_type === 'windows' ? 'e.g. Restart-Service -Name IIS' : 'e.g. systemctl reload nginx'}
               />
+              {agent.os_type === 'windows' && (
+                <p className="text-xs text-slate-400 mt-1">Runs via <code className="bg-slate-100 px-1 rounded">powershell.exe -Command</code> after each certificate deployment.</p>
+              )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Pre-deploy script</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {agent.os_type === 'windows' ? 'Pre-deploy PowerShell script' : 'Pre-deploy script'}
+              </label>
               <textarea
                 value={editPreDeployScript}
                 onChange={(e) => setEditPreDeployScript(e.target.value)}
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
                 rows={4}
-                placeholder="Bash script executed before deployment"
+                placeholder={agent.os_type === 'windows' ? '# PowerShell script executed before deployment\nStop-Service -Name MyApp' : 'Bash script executed before deployment'}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Post-deploy script</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                {agent.os_type === 'windows' ? 'Post-deploy PowerShell script' : 'Post-deploy script'}
+              </label>
               <textarea
                 value={editPostDeployScript}
                 onChange={(e) => setEditPostDeployScript(e.target.value)}
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
                 rows={4}
-                placeholder="Bash script executed after deployment"
+                placeholder={agent.os_type === 'windows' ? '# PowerShell script executed after deployment\nStart-Service -Name MyApp' : 'Bash script executed after deployment'}
               />
             </div>
             <div className="flex justify-end gap-2">
