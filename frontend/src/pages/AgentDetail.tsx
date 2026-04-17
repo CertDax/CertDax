@@ -746,29 +746,34 @@ export default function AgentDetailPage() {
                       )}
                     </div>
 
-                    {/* Primary: NSIS installer */}
+                    {/* Primary: PowerShell one-liner — no browser download = no SmartScreen */}
                     <div className="border-2 border-emerald-200 bg-emerald-50 rounded-xl p-5">
                       <div className="flex items-start gap-3 mb-3">
                         <div className="p-2 bg-emerald-100 rounded-lg flex-shrink-0">
-                          <Download className="w-5 h-5 text-emerald-700" />
+                          <Terminal className="w-5 h-5 text-emerald-700" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-emerald-900">Windows Installer (.exe)</p>
+                          <p className="text-sm font-semibold text-emerald-900">
+                            PowerShell one-liner{' '}
+                            <span className="ml-1 text-xs font-normal bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded">Recommended</span>
+                          </p>
                           <p className="text-xs text-emerald-700 mt-0.5">
-                            Setup wizard — installs CA cert, signed binary, config, and Windows service in one click.
+                            Run in an elevated PowerShell session. Downloads without the browser — bypasses SmartScreen entirely.
                           </p>
                         </div>
                       </div>
-                      <button
-                        onClick={downloadWindowsInstaller}
-                        disabled={!modalCaId || downloadingInstaller}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        {downloadingInstaller ? 'Building installer…' : 'Download setup.exe'}
-                      </button>
-                      {!modalCaId && (
-                        <p className="text-xs text-emerald-700 mt-2 text-center">Select a signing CA above to enable download</p>
+                      {modalCaId ? (
+                        <div className="bg-slate-900 rounded-lg p-3 relative">
+                          <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all pr-8">{`iwr -useb "${window.location.origin}/api/agents/${id}/install/windows-script?ca_id=${modalCaId}&token=${localStorage.getItem('token') ?? ''}" | iex`}</pre>
+                          <button
+                            onClick={() => copyToClipboard(`iwr -useb "${window.location.origin}/api/agents/${id}/install/windows-script?ca_id=${modalCaId}&token=${localStorage.getItem('token') ?? ''}" | iex`, 'pscmd')}
+                            className="absolute top-2 right-2 p-1.5 bg-slate-800 text-slate-300 rounded hover:bg-slate-700"
+                          >
+                            {copied === 'pscmd' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-emerald-700 text-center">Select a signing CA above to see the command</p>
                       )}
                     </div>
 
@@ -776,18 +781,37 @@ export default function AgentDetailPage() {
                     <details className="group">
                       <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700 select-none list-none flex items-center gap-1">
                         <ChevronRight className="w-3.5 h-3.5 transition-transform group-open:rotate-90" />
-                        Advanced / scripted install
+                        Advanced options
                       </summary>
-                      <div className="mt-3 border border-slate-200 rounded-lg p-4">
-                        <p className="text-xs font-semibold text-slate-700 mb-1">PowerShell unattended installer</p>
-                        <button
-                          onClick={downloadWindowsScript}
-                          disabled={!modalCaId || downloadingScript}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          {downloadingScript ? 'Generating…' : 'Download installer.ps1'}
-                        </button>
+                      <div className="mt-3 space-y-2">
+                        {/* NSIS wizard */}
+                        <div className="border border-slate-200 rounded-lg p-4">
+                          <p className="text-xs font-semibold text-slate-700 mb-1">Windows Installer wizard (.exe)</p>
+                          <p className="text-xs text-slate-500 mb-2">
+                            Downloads via browser — SmartScreen may warn. Right-click → Properties → Unblock if needed.
+                          </p>
+                          <button
+                            onClick={downloadWindowsInstaller}
+                            disabled={!modalCaId || downloadingInstaller}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            {downloadingInstaller ? 'Building installer…' : 'Download setup.exe'}
+                          </button>
+                        </div>
+
+                        {/* PowerShell script download */}
+                        <div className="border border-slate-200 rounded-lg p-4">
+                          <p className="text-xs font-semibold text-slate-700 mb-1">PowerShell script only</p>
+                          <button
+                            onClick={downloadWindowsScript}
+                            disabled={!modalCaId || downloadingScript}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            {downloadingScript ? 'Generating…' : 'Download installer.ps1'}
+                          </button>
+                        </div>
                       </div>
                     </details>
                   </>

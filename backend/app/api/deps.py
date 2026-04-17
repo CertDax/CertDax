@@ -51,6 +51,31 @@ def get_current_user(
     raise HTTPException(status_code=401, detail="Invalid token")
 
 
+def resolve_user_from_raw_token(raw_token: str, db: Session) -> User | None:
+    """Resolve a User from a raw bearer/API-key token string without raising.
+    Returns None if the token is invalid or the user cannot be found.
+    """
+    try:
+        payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id:
+            user = db.query(User).filter(User.id == int(user_id)).first()
+            if user:
+                return user
+    except JWTError:
+        pass
+
+    token_hash = hash_token(raw_token)
+    api_key = db.query(ApiKey).filter(ApiKey.key_hash == token_hash).first()
+    if api_key:
+        from datetime import datetime, timezone
+        api_key.last_used_at = datetime.now(timezone.utc)
+        db.commit()
+        return db.query(User).filter(User.id == api_key.user_id).first()
+
+    return None
+
+
 def require_admin(user: User = Depends(get_current_user)) -> User:
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")

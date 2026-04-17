@@ -1,10 +1,14 @@
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, visible_group_ids
+from app.api.deps import get_current_user, resolve_user_from_raw_token, visible_group_ids
+
+_optional_bearer = HTTPBearer(auto_error=False)
 from app.config import settings
 from app.database import get_db
 from app.models.certificate import Certificate
@@ -863,12 +867,16 @@ def get_windows_install_script(
     ca_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    token: Optional[str] = Query(default=None, description="Bearer token passed as query param (for iwr | iex installs)"),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_optional_bearer),
 ):
-    """
-    Generate a PowerShell installer script that installs the CertDax Windows agent
-    as a Windows service and configures it with the agent token.
-    """
+    raw = token or (credentials.credentials if credentials else None)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = resolve_user_from_raw_token(raw, db)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
     target = db.query(DeploymentTarget).filter(
         DeploymentTarget.id == agent_id,
         DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
@@ -917,12 +925,14 @@ Write-Host "=========================" -ForegroundColor Cyan
 Write-Host "Agent: $AgentName"
 Write-Host ""
 
-# Step 1 – Install CA certificate into Trusted Root so the signed agent binary is trusted
-Write-Host "[1/4] Installing CA certificate into Trusted Root Certification Authorities..." -ForegroundColor Yellow
+# Step 1 – Install CA certificate into Trusted Root + Trusted Publishers
+# Adding to TrustedPublisher suppresses the SmartScreen reputation warning for this CA.
+Write-Host "[1/4] Installing CA certificate into Trusted Root + Trusted Publishers..." -ForegroundColor Yellow
 $caCertPath = "$env:TEMP\\certdax-ca.crt"
 $headers = @{{ Authorization = "Bearer $AgentToken" }}
 Invoke-WebRequest -Uri "{ca_cert_url}" -Headers $headers -OutFile $caCertPath
 Import-Certificate -FilePath $caCertPath -CertStoreLocation Cert:\\LocalMachine\\Root | Out-Null
+Import-Certificate -FilePath $caCertPath -CertStoreLocation Cert:\\LocalMachine\\TrustedPublisher | Out-Null
 Remove-Item $caCertPath -Force
 Write-Host "   CA certificate installed." -ForegroundColor Green
 
@@ -957,10 +967,36 @@ New-Service -Name $ServiceName `
 Start-Service -Name $ServiceName
 Write-Host "   Service '$ServiceName' installed and started." -ForegroundColor Green
 
+# Write uninstall helper script
+$UninstallPath = "$InstallDir\\uninstall.ps1"
+@'
+#Requires -RunAsAdministrator
+$ServiceName = "CertDaxAgent"
+$InstallDir  = "C:\ProgramData\CertDax"
+
+Write-Host "Stopping CertDax Agent service..." -ForegroundColor Yellow
+Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+sc.exe delete $ServiceName | Out-Null
+Start-Sleep -Seconds 2
+
+Write-Host "Removing files..." -ForegroundColor Yellow
+Remove-Item -Path "$InstallDir\certdax-agent.exe" -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$InstallDir\config.yaml"        -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "$InstallDir\logs"               -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $MyInvocation.MyCommand.Path     -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $InstallDir                      -Recurse -Force -ErrorAction SilentlyContinue
+
+Write-Host "CertDax Agent removed." -ForegroundColor Cyan
+'@ | Set-Content -Path $UninstallPath -Encoding UTF8
+
 Write-Host ""
 Write-Host "Done! CertDax agent is running as a Windows service." -ForegroundColor Cyan
-Write-Host "Check status: Get-Service -Name $ServiceName"
-Write-Host "View logs:    Get-EventLog -LogName Application -Source $ServiceName -Newest 20"
+Write-Host ""
+Write-Host "Useful commands:" -ForegroundColor DarkCyan
+Write-Host "  Check status : Get-Service -Name $ServiceName"
+Write-Host "  View logs    : Get-Content -Path `"$InstallDir\logs\certdax-agent.log`" -Tail 50"
+Write-Host "  Live logs    : Get-Content -Path `"$InstallDir\logs\certdax-agent.log`" -Wait -Tail 20"
+Write-Host "  Uninstall    : powershell -ExecutionPolicy Bypass -File `"$UninstallPath`""
 """
 
     return PlainTextResponse(content=script, media_type="text/plain")
@@ -1011,11 +1047,15 @@ Section "CertDax Agent" SecMain
     SetOutPath "$INSTDIR"
     File "certdax-agent.exe"
 
-    ; ---- Install CA certificate into Trusted Root Certification Authorities ----
+    ; ---- Install CA certificate into Trusted Root + Trusted Publishers ----
+    ; Adding to TrustedPublisher suppresses the SmartScreen reputation warning
+    ; for all executables signed by this CA on this machine.
     SetOutPath "$TEMP"
     File "ca.crt"
     DetailPrint "Installing CA certificate into Trusted Root Certification Authorities..."
     ExecWait 'certutil.exe -addstore -f "Root" "$TEMP\ca.crt"' $0
+    DetailPrint "Installing CA certificate into Trusted Publishers..."
+    ExecWait 'certutil.exe -addstore -f "TrustedPublisher" "$TEMP\ca.crt"' $0
     Delete "$TEMP\ca.crt"
 
     ; ---- Write agent configuration ----
@@ -1047,14 +1087,30 @@ Section "CertDax Agent" SecMain
 SectionEnd
 
 Section "Uninstall"
+    ; Stop and remove service
+    DetailPrint "Stopping CertDax Agent service..."
     ExecWait 'sc.exe stop CertDaxAgent' $0
     ExecWait 'sc.exe delete CertDaxAgent' $0
     Sleep 2000
+
+    ; Remove binary + uninstaller
     Delete "$INSTDIR\certdax-agent.exe"
     Delete "$INSTDIR\uninstall.exe"
     RMDir "$INSTDIR"
+
+    ; Remove config, logs and data directory
+    Delete "$PROFILE\..\ProgramData\CertDax\config.yaml"
+    Delete "$PROFILE\..\ProgramData\CertDax\uninstall.ps1"
+    Delete "$PROFILE\..\ProgramData\CertDax\logs\certdax-agent.log"
+    Delete "$PROFILE\..\ProgramData\CertDax\logs\certdax-agent.log.1"
+    RMDir "$PROFILE\..\ProgramData\CertDax\logs"
+    RMDir "$PROFILE\..\ProgramData\CertDax"
+
+    ; Remove registry entries
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\CertDaxAgent"
     DeleteRegKey HKLM "Software\CertDax"
+
+    DetailPrint "CertDax Agent removed."
 SectionEnd
 """
 

@@ -5,7 +5,7 @@ WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY main.go ./
+COPY *.go ./
 RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o certdax-agent .
 
 FROM scratch

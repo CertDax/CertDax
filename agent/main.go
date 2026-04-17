@@ -23,6 +23,47 @@ import (
 
 var version = "dev"
 
+// setupLogging configures the logger to write to a file on Windows.
+// On Linux the default stderr output is captured by systemd/journald.
+// Returns a cleanup function that should be deferred by the caller.
+func setupLogging() func() {
+	log.SetFlags(log.Ldate | log.Ltime)
+
+	if runtime.GOOS != "windows" {
+		return func() {}
+	}
+
+	programData := os.Getenv("ProgramData")
+	if programData == "" {
+		programData = `C:\ProgramData`
+	}
+	logDir := filepath.Join(programData, "CertDax", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		// Can't create log dir — fall back to stderr only
+		return func() {}
+	}
+
+	logPath := filepath.Join(logDir, "certdax-agent.log")
+
+	// Simple size-based rotation: keep one archive at .1
+	if fi, err := os.Stat(logPath); err == nil && fi.Size() > 10*1024*1024 {
+		_ = os.Remove(logPath + ".1")
+		_ = os.Rename(logPath, logPath+".1")
+	}
+
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		// Can't open log file — fall back to stderr only
+		return func() {}
+	}
+
+	// Write to both the log file and stderr (stderr is visible in sc.exe debug runs)
+	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	log.Printf("[INFO] Logging to %s", logPath)
+
+	return func() { f.Close() }
+}
+
 // Config holds the agent configuration.
 type Config struct {
 	APIURL       string `yaml:"api_url"`
@@ -572,15 +613,26 @@ func (a *Agent) undeployCertificate(deploymentID int) {
 	log.Printf("[INFO] Removal %d: completed for %s", deploymentID, info.CommonName)
 }
 
-// Run starts the agent main loop.
+// Run starts the agent with OS signal handling (interactive / console mode).
 func (a *Agent) Run() {
+	sigStop := make(chan os.Signal, 1)
+	signal.Notify(sigStop, syscall.SIGINT, syscall.SIGTERM)
+	stop := make(chan struct{})
+	go func() {
+		sig := <-sigStop
+		log.Printf("[INFO] Received signal %v, shutting down", sig)
+		close(stop)
+	}()
+	a.runLoop(stop)
+}
+
+// runLoop is the core polling loop. It exits when stop is closed.
+// This is used both by Run() (signal-driven) and by the Windows SCM handler.
+func (a *Agent) runLoop(stop <-chan struct{}) {
 	log.Printf("[INFO] CertDax Agent %s starting", version)
 	log.Printf("[INFO] API: %s", a.config.APIURL)
 	log.Printf("[INFO] Poll interval: %ds", a.config.PollInterval)
 	log.Printf("[INFO] OS: %s/%s", runtime.GOOS, runtime.GOARCH)
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
 	ticker := time.NewTicker(time.Duration(a.config.PollInterval) * time.Second)
 	defer ticker.Stop()
@@ -594,8 +646,8 @@ func (a *Agent) Run() {
 		case <-ticker.C:
 			a.heartbeat()
 			a.processDeployments()
-		case sig := <-stop:
-			log.Printf("[INFO] Received signal %v, shutting down", sig)
+		case <-stop:
+			log.Printf("[INFO] Shutting down")
 			return
 		}
 	}
@@ -645,6 +697,9 @@ func main() {
 	flag.IntVar(&pollInterval, "poll-interval", 30, "Poll interval in seconds")
 	flag.BoolVar(&showVersion, "version", false, "Show version and exit")
 	flag.Parse()
+
+	closeLog := setupLogging()
+	defer closeLog()
 
 	if showVersion {
 		fmt.Printf("certdax-agent %s (%s/%s)\n", version, runtime.GOOS, runtime.GOARCH)
@@ -708,5 +763,17 @@ func main() {
 		PollInterval: pollInterval,
 	})
 
-	agent.Run()
+	// On Windows, detect if launched by the SCM and dispatch accordingly.
+	// On Linux/macOS this always returns false and agent.Run() handles SIGTERM.
+	isService, err := isWindowsService()
+	if err != nil {
+		log.Fatalf("[FATAL] Cannot determine service mode: %v", err)
+	}
+	if isService {
+		if err := runAsWindowsService(agent); err != nil {
+			log.Fatalf("[FATAL] Windows service exited with error: %v", err)
+		}
+	} else {
+		agent.Run()
+	}
 }
