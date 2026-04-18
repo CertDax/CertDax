@@ -837,7 +837,10 @@ kubectl patch deployment metrics-server -n kube-system \
 #### 3. Install CertDax with autoscaling enabled
 
 ```bash
-helm install certdax ./helm/certdax \
+helm repo add certdax https://charts.certdax.com
+helm repo update
+
+helm install certdax certdax/certdax \
   --namespace certdax --create-namespace \
   --set certdax.secretKey="$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')" \
   --set certdax.encryptionKey="$(python3 -c 'import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')" \
