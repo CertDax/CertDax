@@ -100,6 +100,25 @@ export default function K8sOperatorDetailPage() {
     return () => clearInterval(interval);
   }, [id]);
 
+  // Clear deletingKeys when deleted certs disappear from the operator's reported list
+  useEffect(() => {
+    if (!operator?.certificates || deletingKeys.size === 0) return;
+    const reportedKeys = new Set(
+      operator.certificates.map((c: any) => `${c.certificate_id}:${c.type}`),
+    );
+    setDeletingKeys((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const key of next) {
+        if (!reportedKeys.has(key)) {
+          next.delete(key);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [operator?.certificates]);
+
   useEffect(() => {
     const newCount = operator?.recent_logs?.length || 0;
     if (autoScroll && logContainerRef.current && newCount !== prevLogCountRef.current) {
