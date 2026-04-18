@@ -196,15 +196,17 @@ export default function K8sOperatorDetailPage() {
     }
   };
 
-  const handleDeleteDeployment = async (certId: number, certType: string) => {
+  const handleDeleteDeployment = async (certId: number, certType: string, dashboardManaged?: boolean) => {
     const dep = deployments.find(d => d.certificate_id === certId && d.certificate_type === certType);
     const key = `${certId}:${certType}`;
-    if (dep) {
+    if (dep || dashboardManaged) {
       // Dashboard-deployed cert: remove the deployment record
       if (!confirm('Remove this certificate deployment? The operator will delete the TLS secret from the cluster.')) return;
       setDeletingKeys(prev => new Set(prev).add(key));
       try {
-        await api.delete(`/k8s-operators/${id}/deployments/${dep.id}`);
+        if (dep) {
+          await api.delete(`/k8s-operators/${id}/deployments/${dep.id}`);
+        }
         fetchOperator();
       } catch (err) {
         console.error('Delete deployment failed', err);
@@ -863,7 +865,7 @@ kubectl get cdxcert`}
                     </td>
                     <td className="px-6 py-3">
                       <button
-                        onClick={() => handleDeleteDeployment(cert.certificate_id, cert.type)}
+                        onClick={() => handleDeleteDeployment(cert.certificate_id, cert.type, cert.dashboard_managed)}
                         disabled={deletingKeys.has(`${cert.certificate_id}:${cert.type}`)}
                         className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title="Remove deployment"

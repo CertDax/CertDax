@@ -119,10 +119,17 @@ def heartbeat(
     ]
 
     # Include pending CR deletions (remap to match Go struct: certificate_id + type)
+    # Filter out any pending deletions that conflict with active deployments
+    # to prevent create/delete loops.
     import json as _json3
     raw_pending = _json3.loads(operator.pending_cr_deletions) if operator.pending_cr_deletions else []
+    desired_keys = {(d.certificate_id, d.certificate_type) for d in deployments}
+    filtered_pending = [p for p in raw_pending if (p["certificate_id"], p["certificate_type"]) not in desired_keys]
+    if len(filtered_pending) != len(raw_pending):
+        operator.pending_cr_deletions = _json3.dumps(filtered_pending) if filtered_pending else None
+        db.commit()
     delete_certs = [
         {"certificate_id": p["certificate_id"], "type": p["certificate_type"]}
-        for p in raw_pending
+        for p in filtered_pending
     ]
     return {"status": "ok", "desired_certificates": desired, "delete_certificates": delete_certs}

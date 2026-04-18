@@ -306,6 +306,11 @@ func deleteCertificateCRs(k8sClient client.Client, watchNamespace string, toDele
 	}
 
 	for _, cr := range certList.Items {
+		// Skip dashboard-managed CRs — those are handled by reconcileDesiredCertificates
+		if cr.Labels[dashboardManagedLabel] == "true" {
+			continue
+		}
+
 		// Resolve cert ID the same way as the heartbeat
 		resolvedID := cr.Spec.CertificateID
 		if resolvedID == 0 {
@@ -418,7 +423,7 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 	}
 
 	managed, ready, failed, pending := 0, 0, 0, 0
-	var certs []certdax.ManagedCert
+	certs := []certdax.ManagedCert{}
 	if err := k8sClient.List(ctx, &certList, listOpts...); err == nil {
 		managed = len(certList.Items)
 		for _, c := range certList.Items {

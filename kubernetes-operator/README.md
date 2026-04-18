@@ -289,7 +289,7 @@ kubectl get cdxcert -w
 | `certdax.existingSecret`    | `""`                                       | Existing K8s secret with `api-key`   |
 | `certdax.syncInterval`      | `"1h"`                                     | Default sync interval                |
 | `watchNamespace`            | `""`                                       | Restrict to single namespace         |
-| `image.repository`          | `ghcr.io/certdax/certdax-k8s-operator`     | Operator image                       |
+| `image.repository`          | `ghcr.io/certdax/certdax-operator`         | Operator image                       |
 | `image.tag`                 | `latest`                                   | Image tag                            |
 
 ## Building

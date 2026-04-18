@@ -230,6 +230,7 @@ export interface K8sManagedCert {
   last_synced_at: string | null;
   message: string | null;
   ingresses: string[] | null;
+  dashboard_managed?: boolean;
 }
 
 export interface K8sOperator {

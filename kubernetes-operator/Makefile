@@ -1,5 +1,5 @@
 REGISTRY ?= ghcr.io/certdax
-IMAGE    ?= certdax-k8s-operator
+IMAGE    ?= certdax-operator
 TAG      ?= latest
 
 .PHONY: build docker-push manifests generate fmt vet
