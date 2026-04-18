@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import api from './services/api';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Certificates from './pages/Certificates';
@@ -25,9 +27,27 @@ import Setup from './pages/Setup';
 
 function ProtectedRoute() {
   const token = localStorage.getItem('token');
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
+  const [checking, setChecking] = useState(true);
+  const [redirect, setRedirect] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/setup/status')
+      .then(({ data }) => {
+        if (data.needs_setup) {
+          localStorage.removeItem('token');
+          setRedirect('/setup');
+        } else if (!token) {
+          setRedirect('/login');
+        }
+      })
+      .catch(() => {
+        if (!token) setRedirect('/login');
+      })
+      .finally(() => setChecking(false));
+  }, [token]);
+
+  if (checking) return null;
+  if (redirect) return <Navigate to={redirect} replace />;
   return <Outlet />;
 }
 
