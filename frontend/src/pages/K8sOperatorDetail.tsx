@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -69,6 +69,15 @@ export default function K8sOperatorDetailPage() {
   const [deployments, setDeployments] = useState<{ id: number; certificate_id: number; certificate_type: string; secret_name: string; namespace: string }[]>([]);
   const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
   const [showLogsModal, setShowLogsModal] = useState(false);
+
+  const helmInstallCmd = useMemo(() => {
+    const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const apiUrl = isLocal
+      ? 'http://certdax-backend.certdax.svc.cluster.local:8000/api'
+      : `${window.location.origin}/api`;
+    const esc = helmShell === 'bash' ? '\\' : '`';
+    return `helm install certdax-operator certdax/certdax-operator ${esc}\n  --namespace certdax-system --create-namespace ${esc}\n  --set certdax.apiUrl=${apiUrl} ${esc}\n  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} ${esc}\n  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} ${esc}\n  --set clusterName=${operator?.cluster_name || 'my-cluster'}`;
+  }, [helmShell, credentials.apiKey, credentials.operatorToken, operator?.cluster_name]);
 
   const fetchOperator = async () => {
     try {
@@ -437,33 +446,10 @@ helm repo update`}
               </div>
               <div className="relative bg-slate-900 rounded-lg p-3">
                 <pre className="text-xs text-emerald-400 font-mono whitespace-pre-wrap break-all">
-{(() => {
-  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  const apiUrl = isLocal
-    ? 'http://certdax-backend.certdax.svc.cluster.local:8000/api'
-    : `${window.location.origin}/api`;
-  const esc = helmShell === 'bash' ? '\\' : '`';
-  return `helm install certdax-operator certdax/certdax-operator ${esc}
-  --namespace certdax-system --create-namespace ${esc}
-  --set certdax.apiUrl=${apiUrl} ${esc}
-  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} ${esc}
-  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} ${esc}
-  --set clusterName=${operator.cluster_name || 'my-cluster'}`;
-})()}
+{helmInstallCmd}
                 </pre>
                 <button
-                  onClick={() => {
-                    const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-                    const apiUrl = isLocal
-                      ? 'http://certdax-backend.certdax.svc.cluster.local:8000/api'
-                      : `${window.location.origin}/api`;
-                    const esc = helmShell === 'bash' ? '\\' : '`';
-                    const nl = '\n';
-                    copyToClipboard(
-                      `helm install certdax-operator certdax/certdax-operator ${esc}${nl}  --namespace certdax-system --create-namespace ${esc}${nl}  --set certdax.apiUrl=${apiUrl} ${esc}${nl}  --set certdax.apiKey=${credentials.apiKey || '<YOUR_API_KEY>'} ${esc}${nl}  --set certdax.operatorToken=${credentials.operatorToken || '<OPERATOR_TOKEN>'} ${esc}${nl}  --set clusterName=${operator.cluster_name || 'my-cluster'}`,
-                      'step2'
-                    );
-                  }}
+                  onClick={() => copyToClipboard(helmInstallCmd, 'step2')}
                   className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-slate-300 rounded"
                 >
                   {copied === 'step2' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
