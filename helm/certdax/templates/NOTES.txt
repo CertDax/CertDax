@@ -13,6 +13,22 @@ Access CertDax at:
 Make sure your DNS (or /etc/hosts) points {{ .Values.ingress.host }} to your
 Ingress controller's external IP.
 
+Find the external IP of your Ingress controller:
+
+  kubectl get ingress {{ include "certdax.fullname" . }} -n {{ .Release.Namespace }}
+
+Or check your Ingress controller's LoadBalancer service directly:
+
+  kubectl get svc -A | grep -i ingress
+
+Once you have the EXTERNAL-IP, create a DNS A record:
+
+  {{ .Values.ingress.host }}  →  <EXTERNAL-IP>
+
+Or for quick local testing, add it to /etc/hosts:
+
+  echo "<EXTERNAL-IP> {{ .Values.ingress.host }}" | sudo tee -a /etc/hosts
+
 {{- else }}
 
 CertDax is not exposed externally (ingress is disabled).
