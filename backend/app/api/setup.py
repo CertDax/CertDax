@@ -102,15 +102,23 @@ def complete_setup(req: SetupRequest, db: Session = Depends(get_db)):
         ).all():
             ca.is_active = False
 
-    # Set ACME contact email on default CAs
+    # Set ACME contact email on default CAs (write to CaGroupAccount for global CAs)
     if req.acme_contact_email:
         from app.models.certificate import CertificateAuthority
+        from app.models.ca_group_account import CaGroupAccount
         from app.services.seed import DEFAULT_CAS
         default_urls = [ca["directory_url"] for ca in DEFAULT_CAS]
         for ca in db.query(CertificateAuthority).filter(
             CertificateAuthority.directory_url.in_(default_urls)
         ).all():
-            ca.contact_email = req.acme_contact_email
+            override = db.query(CaGroupAccount).filter(
+                CaGroupAccount.ca_id == ca.id,
+                CaGroupAccount.group_id == default_group.id,
+            ).first()
+            if not override:
+                override = CaGroupAccount(ca_id=ca.id, group_id=default_group.id)
+                db.add(override)
+            override.contact_email = req.acme_contact_email
 
     db.commit()
     db.refresh(user)
