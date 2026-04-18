@@ -70,7 +70,9 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == req.username).first()
+    user = db.query(User).filter(User.email == req.username).first()
+    if not user:
+        user = db.query(User).filter(User.username == req.username).first()
     if not user or not _bcrypt.checkpw(req.password.encode(), user.password_hash.encode()):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
