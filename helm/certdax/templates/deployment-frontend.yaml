@@ -6,7 +6,9 @@ metadata:
     {{- include "certdax.labels" . | nindent 4 }}
     app.kubernetes.io/component: frontend
 spec:
+  {{- if not .Values.frontend.autoscaling.enabled }}
   replicas: {{ .Values.frontend.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "certdax.frontendSelectorLabels" . | nindent 6 }}

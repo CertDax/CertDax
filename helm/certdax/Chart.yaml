@@ -2,7 +2,7 @@ apiVersion: v2
 name: certdax
 description: CertDax — SSL Certificate Management Dashboard with ACME, CA signing, deploy agents, and auto-renewal
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "1.2.3"
 keywords:
   - certificates

@@ -9,6 +9,12 @@ backend:
     tag: latest
     pullPolicy: Always
   replicaCount: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ""
   resources:
     limits:
       cpu: 500m
@@ -26,6 +32,12 @@ frontend:
     tag: latest
     pullPolicy: Always
   replicaCount: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: ""
   resources:
     limits:
       cpu: 200m
