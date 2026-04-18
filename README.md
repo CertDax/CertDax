@@ -8,8 +8,9 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
 
 - [Features](#features)
 - [Tech Stack](#tech-stack)
-- [Quick Start (Docker Compose)](#quick-start-docker-compose)
-- [Quick Start (Kubernetes / Helm)](#quick-start-kubernetes--helm)
+- [Quick Start](#quick-start)
+  - [Docker Compose](#docker-compose)
+  - [Kubernetes / Helm](#kubernetes--helm)
 - [Development Setup](#development-setup)
 - [First Use](#first-use)
 - [Environment Variables](#environment-variables)
@@ -84,7 +85,9 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
 | **K8s Operator** | Go, controller-runtime, Helm |
 | **Infrastructure** | Docker, Docker Compose, Nginx |
 
-## Quick Start (Docker Compose)
+## Quick Start
+
+### Docker Compose
 
 ```bash
 # 1. Clone and configure
@@ -104,7 +107,7 @@ docker compose up -d
 # 5. Open your browser and create the first admin account
 ```
 
-## Quick Start (Kubernetes / Helm)
+### Kubernetes / Helm
 
 Deploy CertDax to any Kubernetes cluster with a single Helm command. The chart includes the backend, frontend, and a PostgreSQL database. An Ingress resource is created automatically so your existing reverse proxy (Nginx, HAProxy, Apache, Traefik, etc.) can reach CertDax immediately.
 
@@ -799,7 +802,9 @@ docker service scale certdax_backend=3
 
 ### Kubernetes
 
-Use the Docker images with a standard deployment. Key points:
+The recommended way to deploy CertDax on Kubernetes is with the **Helm chart** — see [Quick Start (Kubernetes / Helm)](#quick-start-kubernetes--helm). The chart handles secrets, PostgreSQL, Ingress, and multi-replica backends automatically.
+
+Alternatively, use the Docker images with a standard deployment. Key points:
 - Store `SECRET_KEY`, `ENCRYPTION_KEY`, `DB_PASSWORD` in a K8s Secret
 - Use a `Deployment` with multiple replicas for the backend
 - Point `DATABASE_URL` to a managed PostgreSQL (e.g. CloudSQL, RDS, or an in-cluster instance)
