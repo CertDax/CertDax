@@ -608,7 +608,7 @@ With manual validation, DNS records are shown in the server logs.
 
 ## Reverse Proxy
 
-By default CertDax listens on port **80** (HTTP). Place a reverse proxy in front for SSL termination. The examples below assume CertDax runs on `127.0.0.1:80`.
+By default CertDax listens on port **8081** (HTTP). Place a reverse proxy in front for SSL termination. The examples below assume CertDax runs on `127.0.0.1:8081`.
 
 ### Nginx
 
@@ -621,7 +621,7 @@ server {
     ssl_certificate_key /etc/ssl/private/certdax.key;
 
     location / {
-        proxy_pass http://127.0.0.1:80;
+        proxy_pass http://127.0.0.1:8081;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -656,8 +656,8 @@ sudo systemctl restart apache2
     SSLCertificateKeyFile /etc/ssl/private/certdax.key
 
     ProxyPreserveHost On
-    ProxyPass / http://127.0.0.1:80/
-    ProxyPassReverse / http://127.0.0.1:80/
+    ProxyPass / http://127.0.0.1:8081/
+    ProxyPassReverse / http://127.0.0.1:8081/
 
     RequestHeader set X-Forwarded-Proto "https"
     RequestHeader set X-Forwarded-Port "443"
@@ -683,7 +683,7 @@ frontend https_in
 backend certdax
     option httpchk GET /health
     http-request set-header X-Forwarded-Proto https if { ssl_fc }
-    server certdax 127.0.0.1:80 check
+    server certdax 127.0.0.1:8081 check
 ```
 
 > **Note:** Set `CORS_ORIGINS` and `FRONTEND_URL` in your `.env` to the public URL (e.g. `https://certdax.example.com`).
