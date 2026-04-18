@@ -1,0 +1,40 @@
+
+CertDax has been deployed to your cluster!
+
+{{- if .Values.ingress.enabled }}
+
+Access CertDax at:
+{{- if .Values.ingress.tls.enabled }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  http://{{ .Values.ingress.host }}
+{{- end }}
+
+Make sure your DNS (or /etc/hosts) points {{ .Values.ingress.host }} to your
+Ingress controller's external IP.
+
+{{- else }}
+
+CertDax is not exposed externally (ingress is disabled).
+To access it, use port-forward:
+
+  kubectl port-forward svc/{{ include "certdax.fullname" . }}-frontend 8080:80 -n {{ .Release.Namespace }}
+
+Then open http://localhost:8080 in your browser.
+
+{{- end }}
+
+First-time setup:
+  1. Open CertDax and create your admin account
+  2. Go to Settings → configure SMTP for email notifications (optional)
+  3. Go to Providers → add a DNS provider or Certificate Authority
+  4. Go to Certificates → request your first certificate
+
+{{- if .Values.postgresql.enabled }}
+
+PostgreSQL is running inside the cluster as a StatefulSet.
+Data is persisted on a {{ .Values.postgresql.storage.size }} PVC.
+{{- else }}
+
+Using external database: {{ .Values.certdax.externalDatabaseUrl }}
+{{- end }}

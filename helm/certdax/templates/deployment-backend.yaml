@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "certdax.fullname" . }}-backend
+  labels:
+    {{- include "certdax.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "certdax.backendSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "certdax.backendSelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "certdax.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "certdax.secretName" . }}
+                  key: secret-key
+            {{- if or .Values.certdax.encryptionKey .Values.certdax.existingSecret }}
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "certdax.secretName" . }}
+                  key: encryption-key
+                  optional: true
+            {{- end }}
+            {{- if .Values.postgresql.enabled }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "certdax.postgresqlSecretName" . }}
+                  key: {{ .Values.postgresql.auth.existingSecretKey | default "postgresql-password" }}
+            - name: DATABASE_URL
+              value: {{ include "certdax.databaseUrl" . | quote }}
+            {{- else }}
+            - name: DATABASE_URL
+              value: {{ .Values.certdax.externalDatabaseUrl | quote }}
+            {{- end }}
+            - name: CORS_ORIGINS
+              value: {{ include "certdax.publicUrl" . | quote }}
+            - name: FRONTEND_URL
+              value: {{ include "certdax.publicUrl" . | quote }}
+            - name: ACME_CONTACT_EMAIL
+              value: {{ .Values.certdax.acmeContactEmail | quote }}
+            - name: JWT_EXPIRY_MINUTES
+              value: {{ .Values.certdax.jwtExpiryMinutes | quote }}
+            - name: RENEWAL_CHECK_HOURS
+              value: {{ .Values.certdax.renewalCheckHours | quote }}
+            - name: RENEWAL_THRESHOLD_DAYS
+              value: {{ .Values.certdax.renewalThresholdDays | quote }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+      volumes:
+        - name: data
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

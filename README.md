@@ -9,6 +9,7 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
 - [Features](#features)
 - [Tech Stack](#tech-stack)
 - [Quick Start (Docker Compose)](#quick-start-docker-compose)
+- [Quick Start (Kubernetes / Helm)](#quick-start-kubernetes--helm)
 - [Development Setup](#development-setup)
 - [First Use](#first-use)
 - [Environment Variables](#environment-variables)
@@ -101,6 +102,46 @@ nano .env
 docker compose up -d
 
 # 5. Open your browser and create the first admin account
+```
+
+## Quick Start (Kubernetes / Helm)
+
+Deploy CertDax to any Kubernetes cluster with a single Helm command. The chart includes the backend, frontend, and a PostgreSQL database. An Ingress resource is created automatically so your existing reverse proxy (Nginx, HAProxy, Apache, Traefik, etc.) can reach CertDax immediately.
+
+```bash
+# 1. Generate secrets
+SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(64))")
+ENCRYPTION_KEY=$(python3 -c "import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())")
+DB_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+
+# 2. Add the Helm repo
+helm repo add certdax https://charts.certdax.com
+helm repo update
+
+# 3. Install CertDax
+helm install certdax certdax/certdax \
+  --namespace certdax --create-namespace \
+  --set certdax.secretKey="$SECRET_KEY" \
+  --set certdax.encryptionKey="$ENCRYPTION_KEY" \
+  --set postgresql.auth.password="$DB_PASSWORD" \
+  --set ingress.host=certdax.example.com \
+  --set ingress.className=nginx
+
+# 4. Open your browser and create the first admin account
+```
+
+For TLS, add `--set ingress.tls.enabled=true --set ingress.tls.secretName=certdax-tls` (e.g. via cert-manager or the CertDax operator).
+
+Use an external database instead of the built-in PostgreSQL:
+
+```bash
+helm install certdax certdax/certdax \
+  --namespace certdax --create-namespace \
+  --set certdax.secretKey="$SECRET_KEY" \
+  --set certdax.encryptionKey="$ENCRYPTION_KEY" \
+  --set postgresql.enabled=false \
+  --set certdax.externalDatabaseUrl="postgresql://user:pass@db-host:5432/certdax" \
+  --set ingress.host=certdax.example.com
 ```
 
 ## Development Setup
