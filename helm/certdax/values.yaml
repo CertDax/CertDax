@@ -1,0 +1,137 @@
+# -- CertDax Helm Chart Values
+
+# ============================================================
+# Backend
+# ============================================================
+backend:
+  image:
+    repository: ghcr.io/certdax/certdax-backend
+    tag: latest
+    pullPolicy: Always
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# ============================================================
+# Frontend
+# ============================================================
+frontend:
+  image:
+    repository: ghcr.io/certdax/certdax-frontend
+    tag: latest
+    pullPolicy: Always
+  replicaCount: 1
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+# ============================================================
+# PostgreSQL (built-in)
+# ============================================================
+postgresql:
+  # Set to false to use an external database instead
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  # Database credentials (also used to build DATABASE_URL)
+  auth:
+    database: certdax
+    username: certdax
+    # Password for the database — required when postgresql.enabled=true
+    # You can also reference an existing secret with existingSecret
+    password: ""
+    existingSecret: ""
+    # Key inside the existing secret that contains the password
+    existingSecretKey: "postgresql-password"
+  storage:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# ============================================================
+# CertDax configuration
+# ============================================================
+certdax:
+  # -- JWT signing key (required). Must be identical across all replicas.
+  # Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(64))"
+  secretKey: ""
+  # -- Encryption key for private keys at rest (recommended).
+  # Generate with: python3 -c "import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
+  # If empty the backend generates one — but it MUST be identical across replicas.
+  encryptionKey: ""
+  # -- Use an existing K8s secret for secretKey and encryptionKey instead
+  # The secret must contain keys "secret-key" and "encryption-key"
+  existingSecret: ""
+  # -- Contact email for ACME certificate requests
+  acmeContactEmail: "admin@example.com"
+  # -- JWT token lifetime in minutes
+  jwtExpiryMinutes: 1440
+  # -- How often (hours) to check for certificates needing renewal
+  renewalCheckHours: 12
+  # -- Default days before expiry to trigger auto-renewal
+  renewalThresholdDays: 30
+  # -- External database URL (only used when postgresql.enabled=false)
+  # Example: postgresql://user:pass@host:5432/certdax
+  externalDatabaseUrl: ""
+
+# ============================================================
+# Ingress
+# ============================================================
+ingress:
+  enabled: true
+  # -- Ingress class name (e.g. nginx, haproxy, traefik)
+  className: ""
+  # -- Hostname for CertDax (required when ingress is enabled)
+  host: certdax.example.com
+  annotations: {}
+    # Example annotations for common controllers:
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    # nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    # haproxy-ingress.github.io/timeout-server: "300s"
+  tls:
+    enabled: false
+    # -- TLS secret name (e.g. created by cert-manager or CertDax operator)
+    secretName: ""
+
+# ============================================================
+# General
+# ============================================================
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
