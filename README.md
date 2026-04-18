@@ -55,6 +55,7 @@ A complete SSL certificate management platform with web dashboard, ACME integrat
   - [Requirements for multi-node](#requirements-for-multi-node)
   - [Docker Swarm example](#docker-swarm-example)
   - [Kubernetes](#kubernetes)
+  - [Testing Autoscaling (Podman + Kind)](#testing-autoscaling-podman--kind)
 - [Security](#security)
 
 ## Features
@@ -809,6 +810,71 @@ Alternatively, use the Docker images with a standard deployment. Key points:
 - Use a `Deployment` with multiple replicas for the backend
 - Point `DATABASE_URL` to a managed PostgreSQL (e.g. CloudSQL, RDS, or an in-cluster instance)
 - Copy agent binaries into `backend/agent-dist/` before building the image
+
+### Testing Autoscaling (Podman + Kind)
+
+The Helm chart includes optional `HorizontalPodAutoscaler` resources for the backend and frontend. Enable them with `backend.autoscaling.enabled=true` and/or `frontend.autoscaling.enabled=true`. You can test autoscaling locally using **Podman** as the container runtime for a **Kind** cluster.
+
+**Prerequisites:** `podman`, `kind`, `kubectl`, `helm`
+
+#### 1. Create a Kind cluster on Podman
+
+```bash
+KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --name certdax-test
+```
+
+#### 2. Install metrics-server (required for HPA)
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# Patch for Kind (no real TLS certs)
+kubectl patch deployment metrics-server -n kube-system \
+  --type=json \
+  -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+```
+
+#### 3. Install CertDax with autoscaling enabled
+
+```bash
+helm repo add certdax https://charts.certdax.com
+helm repo update
+
+helm install certdax certdax/certdax \
+  --namespace certdax --create-namespace \
+  --set certdax.secretKey="$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')" \
+  --set certdax.encryptionKey="$(python3 -c 'import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')" \
+  --set postgresql.auth.password="testpassword123" \
+  --set backend.autoscaling.enabled=true \
+  --set backend.autoscaling.targetCPUUtilizationPercentage=50 \
+  --set frontend.autoscaling.enabled=true \
+  --set ingress.enabled=false
+```
+
+#### 4. Verify HPA is running
+
+```bash
+kubectl get hpa -n certdax
+# Wait ~60s for metrics-server to start reporting, then watch:
+kubectl get hpa -n certdax -w
+```
+
+#### 5. Generate load to trigger scaling
+
+```bash
+# In another terminal, generate traffic against the backend
+kubectl run -n certdax load-gen --rm -i --tty \
+  --image=busybox -- /bin/sh -c \
+  "while true; do wget -q -O- http://certdax-backend:8000/health; done"
+```
+
+Watch the HPA scale up with `kubectl get hpa -n certdax -w`. You should see `TARGETS` rise and `REPLICAS` increase.
+
+#### 6. Cleanup
+
+```bash
+KIND_EXPERIMENTAL_PROVIDER=podman kind delete cluster --name certdax-test
+```
 
 ## Security
 
