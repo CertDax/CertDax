@@ -71,6 +71,9 @@ export default function AgentDetailPage() {
   // Deleting state: keyed by "cert:ID" or "ss:ID" so we can match against
   // the backend's pending_removal_cert_ids / pending_removal_ss_ids lists.
   const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
+  // Timestamp when each key was added to deletingKeys — used to enforce a
+  // minimum display time so the "Deleting" badge doesn't flash away instantly.
+  const [deletingTimestamps, setDeletingTimestamps] = useState<Map<string, number>>(new Map());
   // Ghost copies of certs being deleted — keeps the row visible even after
   // the backend removes the AgentCertificate record from assigned_certificates.
   const [ghostCerts, setGhostCerts] = useState<Map<string, import('../types').AgentCertificate>>(new Map());
@@ -112,6 +115,8 @@ export default function AgentDetailPage() {
   // When the backend confirms the agent has processed the removal (pending_removal
   // is gone), transition from "deleting" to "removed" state so the user sees
   // a brief confirmation before the row disappears.
+  // Enforce a minimum 3s display time for "Deleting" so it doesn't flash away.
+  const MIN_DELETING_MS = 3000;
   useEffect(() => {
     if (!agent || deletingKeys.size === 0) return;
     const assignedCertIds = new Set(agent.assigned_certificates.map((ac) => ac.certificate_id).filter(Boolean));
@@ -119,21 +124,28 @@ export default function AgentDetailPage() {
     const pendingCertIds = new Set(agent.pending_removal_cert_ids ?? []);
     const pendingSsIds = new Set(agent.pending_removal_ss_ids ?? []);
     const newlyRemoved: string[] = [];
+    const retryLaterKeys: { key: string; waitMs: number }[] = [];
+    const now = Date.now();
     setDeletingKeys((prev) => {
       let changed = false;
       const next = new Set(prev);
       for (const key of next) {
         const [type, rawId] = key.split(':');
         const numId = Number(rawId);
+        let shouldClear = false;
         if (type === 'cert') {
-          if (!assignedCertIds.has(numId) && !pendingCertIds.has(numId)) {
-            next.delete(key); changed = true;
-            newlyRemoved.push(key);
-          }
+          shouldClear = !assignedCertIds.has(numId) && !pendingCertIds.has(numId);
         } else if (type === 'ss') {
-          if (!assignedSsIds.has(numId) && !pendingSsIds.has(numId)) {
+          shouldClear = !assignedSsIds.has(numId) && !pendingSsIds.has(numId);
+        }
+        if (shouldClear) {
+          const addedAt = deletingTimestamps.get(key) || 0;
+          const elapsed = now - addedAt;
+          if (elapsed >= MIN_DELETING_MS) {
             next.delete(key); changed = true;
             newlyRemoved.push(key);
+          } else {
+            retryLaterKeys.push({ key, waitMs: MIN_DELETING_MS - elapsed });
           }
         }
       }
@@ -141,6 +153,11 @@ export default function AgentDetailPage() {
     });
     // Move newly confirmed removals into the "removed" set for brief display
     if (newlyRemoved.length > 0) {
+      setDeletingTimestamps((prev) => {
+        const next = new Map(prev);
+        newlyRemoved.forEach((k) => next.delete(k));
+        return next;
+      });
       setRemovedKeys((prev) => {
         const next = new Set(prev);
         newlyRemoved.forEach((k) => next.add(k));
@@ -159,6 +176,12 @@ export default function AgentDetailPage() {
           return next;
         });
       }, 5000);
+    }
+    // Schedule retry for keys that haven't reached minimum display time
+    if (retryLaterKeys.length > 0) {
+      const maxWait = Math.max(...retryLaterKeys.map((r) => r.waitMs));
+      const timer = setTimeout(() => fetchAgent(), maxWait + 100);
+      return () => clearTimeout(timer);
     }
   }, [agent?.assigned_certificates, agent?.pending_removal_cert_ids, agent?.pending_removal_ss_ids]);
 
@@ -218,6 +241,7 @@ export default function AgentDetailPage() {
         : null;
     if (key && ac) {
       setDeletingKeys((prev) => new Set(prev).add(key));
+      setDeletingTimestamps((prev) => new Map(prev).set(key, Date.now()));
       setGhostCerts((prev) => new Map(prev).set(key, ac));
     }
     try {
@@ -228,6 +252,7 @@ export default function AgentDetailPage() {
       alert('Error detaching certificate');
       if (key) {
         setDeletingKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
+        setDeletingTimestamps((prev) => { const next = new Map(prev); next.delete(key); return next; });
         setGhostCerts((prev) => { const next = new Map(prev); next.delete(key); return next; });
       }
     }
