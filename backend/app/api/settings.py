@@ -226,11 +226,13 @@ def test_oidc(
 class AppSettingsRequest(BaseModel):
     default_cas_enabled: bool = True
     timezone: str = "UTC"
+    api_base_url: str = ""
 
 
 class AppSettingsResponse(BaseModel):
     default_cas_enabled: bool
     timezone: str
+    api_base_url: str
 
 
 @router.get("/app", response_model=AppSettingsResponse)
@@ -240,8 +242,8 @@ def get_app_settings(
 ):
     s = db.query(AppSettings).first()
     if not s:
-        return AppSettingsResponse(default_cas_enabled=True, timezone="UTC")
-    return AppSettingsResponse(default_cas_enabled=s.default_cas_enabled, timezone=s.timezone or "UTC")
+        return AppSettingsResponse(default_cas_enabled=True, timezone="UTC", api_base_url="")
+    return AppSettingsResponse(default_cas_enabled=s.default_cas_enabled, timezone=s.timezone or "UTC", api_base_url=s.api_base_url or "")
 
 
 @router.put("/app", response_model=AppSettingsResponse)
@@ -256,6 +258,7 @@ def save_app_settings(
         db.add(s)
 
     s.default_cas_enabled = req.default_cas_enabled
+    s.api_base_url = req.api_base_url.strip().rstrip("/") if req.api_base_url else None
 
     # Validate timezone
     from zoneinfo import ZoneInfo
@@ -279,7 +282,7 @@ def save_app_settings(
 
     db.commit()
     db.refresh(s)
-    return AppSettingsResponse(default_cas_enabled=s.default_cas_enabled, timezone=s.timezone or "UTC")
+    return AppSettingsResponse(default_cas_enabled=s.default_cas_enabled, timezone=s.timezone or "UTC", api_base_url=s.api_base_url or "")
 
 
 @router.get("/timezones")

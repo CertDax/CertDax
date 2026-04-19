@@ -236,6 +236,9 @@ def _migrate_db():
         if "timezone" not in existing_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE app_settings ADD COLUMN timezone VARCHAR(100) DEFAULT 'UTC'"))
+        if "api_base_url" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE app_settings ADD COLUMN api_base_url VARCHAR(500)"))
 
     # --- Auto-renewal & threshold migration ---
     if "certificates" in existing_tables:

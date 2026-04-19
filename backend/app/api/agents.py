@@ -679,9 +679,14 @@ def get_install_script(
     target.agent_token_hash = token_hash
     db.commit()
 
-    # Determine API URL: prefer explicit config, then forwarded headers, then request
+    # Determine API URL: prefer DB setting, then env var, then forwarded headers, then request
     from app.config import settings as _settings
-    if _settings.API_BASE_URL:
+    from app.models.app_settings import AppSettings
+    _app = db.query(AppSettings).first()
+    _db_base_url = (_app.api_base_url or "").strip().rstrip("/") if _app else ""
+    if _db_base_url:
+        api_url = _db_base_url
+    elif _settings.API_BASE_URL:
         api_url = _settings.API_BASE_URL.rstrip("/")
     else:
         forwarded_proto = request.headers.get("x-forwarded-proto", "https")
@@ -964,9 +969,14 @@ def get_windows_install_script(
     if not target:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Determine base API URL
+    # Determine base API URL: prefer DB setting, then env var, then forwarded headers
     from app.config import settings as _settings
-    if _settings.API_BASE_URL:
+    from app.models.app_settings import AppSettings
+    _app = db.query(AppSettings).first()
+    _db_base_url = (_app.api_base_url or "").strip().rstrip("/") if _app else ""
+    if _db_base_url:
+        api_url = _db_base_url
+    elif _settings.API_BASE_URL:
         api_url = _settings.API_BASE_URL.rstrip("/")
     else:
         forwarded_proto = request.headers.get("x-forwarded-proto", "https")
