@@ -560,6 +560,65 @@ def unassign_certificate(
     return {"detail": "Certificate unassigned"}
 
 
+@router.post("/{agent_id}/certificates/{assignment_id}/retry")
+def retry_certificate_deployment(
+    agent_id: int,
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    target = db.query(DeploymentTarget).filter(
+        DeploymentTarget.id == agent_id,
+        DeploymentTarget.group_id.in_(visible_group_ids(db, user, "agents")),
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    ac = (
+        db.query(AgentCertificate)
+        .filter(
+            AgentCertificate.id == assignment_id,
+            AgentCertificate.target_id == agent_id,
+        )
+        .first()
+    )
+    if not ac:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    # Find the latest failed deployment for this cert+target
+    from sqlalchemy import desc as _desc
+    filters = [CertificateDeployment.target_id == agent_id]
+    if ac.certificate_id:
+        filters.append(CertificateDeployment.certificate_id == ac.certificate_id)
+    else:
+        filters.append(CertificateDeployment.self_signed_certificate_id == ac.self_signed_certificate_id)
+
+    dep = (
+        db.query(CertificateDeployment)
+        .filter(*filters)
+        .order_by(_desc(CertificateDeployment.created_at))
+        .first()
+    )
+
+    if dep and dep.status == "failed":
+        dep.status = "pending"
+        dep.error_message = None
+        db.commit()
+        return {"detail": "Deployment retrying"}
+
+    # No failed deployment — create a new pending one
+    deployment = CertificateDeployment(
+        certificate_id=ac.certificate_id,
+        self_signed_certificate_id=ac.self_signed_certificate_id,
+        target_id=agent_id,
+        deploy_format=ac.deploy_format,
+        status="pending",
+    )
+    db.add(deployment)
+    db.commit()
+    return {"detail": "Deployment retrying"}
+
+
 # Install script endpoint
 
 INSTALL_SCRIPT_TEMPLATE = r"""#!/bin/sh
