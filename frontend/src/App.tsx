@@ -25,28 +25,52 @@ import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import Setup from './pages/Setup';
 
+function StartingUpScreen() {
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="text-center">
+        <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+          <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+        </div>
+        <h1 className="text-2xl font-bold text-white mb-2">CertDax</h1>
+        <p className="text-slate-400">Starting up, please wait...</p>
+        <div className="mt-6">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500 mx-auto" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProtectedRoute() {
   const token = localStorage.getItem('token');
   const [checking, setChecking] = useState(true);
+  const [starting, setStarting] = useState(false);
   const [redirect, setRedirect] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get('/setup/status')
-      .then(({ data }) => {
-        if (data.needs_setup) {
-          localStorage.removeItem('token');
-          setRedirect('/setup');
-        } else if (!token) {
-          setRedirect('/login');
-        }
-      })
-      .catch(() => {
-        if (!token) setRedirect('/login');
-      })
-      .finally(() => setChecking(false));
+    let attempt = 0;
+    const check = () => {
+      api.get('/setup/status')
+        .then(({ data }) => {
+          if (data.needs_setup) {
+            localStorage.removeItem('token');
+            setRedirect('/setup');
+          } else if (!token) {
+            setRedirect('/login');
+          }
+          setChecking(false);
+        })
+        .catch(() => {
+          attempt++;
+          if (attempt >= 2) setStarting(true);
+          setTimeout(check, 2000);
+        });
+    };
+    check();
   }, [token]);
 
-  if (checking) return null;
+  if (checking) return starting ? <StartingUpScreen /> : null;
   if (redirect) return <Navigate to={redirect} replace />;
   return <Outlet />;
 }

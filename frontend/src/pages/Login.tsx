@@ -7,6 +7,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [checkingSetup, setCheckingSetup] = useState(true);
+  const [backendStarting, setBackendStarting] = useState(false);
   const [isRegister, setIsRegister] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
@@ -29,13 +30,22 @@ export default function Login() {
       return;
     }
 
-    api.get('/setup/status').then(({ data }) => {
-      if (data.needs_setup) {
-        navigate('/setup', { replace: true });
-        return;
-      }
-      setNeedsSetup(false);
-    }).catch(() => {}).finally(() => setCheckingSetup(false));
+    let attempt = 0;
+    const checkSetup = () => {
+      api.get('/setup/status').then(({ data }) => {
+        if (data.needs_setup) {
+          navigate('/setup', { replace: true });
+          return;
+        }
+        setNeedsSetup(false);
+        setCheckingSetup(false);
+      }).catch(() => {
+        attempt++;
+        if (attempt >= 2) setBackendStarting(true);
+        setTimeout(checkSetup, 2000);
+      });
+    };
+    checkSetup();
 
     api.get('/oidc/config').then(({ data }) => {
       if (data?.enabled) setOidcConfig(data);
@@ -82,7 +92,25 @@ export default function Login() {
     }
   };
 
-  if (checkingSetup) return null;
+  if (checkingSetup) {
+    if (backendStarting) {
+      return (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+              <Lock className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-white mb-2">CertDax</h1>
+            <p className="text-slate-400">Starting up, please wait...</p>
+            <div className="mt-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500 mx-auto" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
