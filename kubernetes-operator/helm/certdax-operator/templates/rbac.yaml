@@ -16,6 +16,10 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Namespaces (for namespace listing in dashboard)
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["list"]
   # Events
   - apiGroups: [""]
     resources: ["events"]

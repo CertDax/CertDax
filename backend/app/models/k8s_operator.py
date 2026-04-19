@@ -33,6 +33,7 @@ class K8sOperator(Base):
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     recent_logs: Mapped[str | None] = mapped_column(Text, nullable=True)
     managed_certs_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    available_namespaces_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     pending_cr_deletions: Mapped[str | None] = mapped_column(Text, nullable=True)
     api_key_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True
