@@ -95,6 +95,14 @@ def _operator_response(op: K8sOperator, db: Session | None = None) -> dict:
 
     certificates = extra_pending + reported
 
+    # Parse available namespaces
+    available_namespaces: list[str] = []
+    if op.available_namespaces_json:
+        try:
+            available_namespaces = json.loads(op.available_namespaces_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return {
         "id": op.id,
         "name": op.name,
@@ -117,6 +125,7 @@ def _operator_response(op: K8sOperator, db: Session | None = None) -> dict:
         "last_error": op.last_error,
         "recent_logs": _parse_logs(op.recent_logs),
         "certificates": certificates,
+        "available_namespaces": available_namespaces,
         "created_at": op.created_at.isoformat() if op.created_at else None,
     }
 

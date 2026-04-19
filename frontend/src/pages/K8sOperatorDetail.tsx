@@ -171,7 +171,11 @@ export default function K8sOperatorDetailPage() {
     setDeployCertType('selfsigned');
     setDeployCertId('');
     setDeploySecretName('');
-    setDeployNamespace('default');
+    setDeployNamespace(
+      operator?.available_namespaces?.includes('default')
+        ? 'default'
+        : operator?.available_namespaces?.[0] || 'default'
+    );
     setDeploySyncInterval('1h');
     setDeployIncludeCA(true);
     setShowDeployModal(true);
@@ -792,6 +796,7 @@ kubectl get cdxcert`}
                   <th className="px-6 py-3">Common Name</th>
                   <th className="px-6 py-3">Type</th>
                   <th className="px-6 py-3">Secret</th>
+                  <th className="px-6 py-3">Namespace</th>
                   <th className="px-6 py-3">Ingress</th>
                   <th className="px-6 py-3">Expires</th>
                   <th className="px-6 py-3">Last Synced</th>
@@ -837,7 +842,10 @@ kubectl get cdxcert`}
                       </span>
                     </td>
                     <td className="px-6 py-3 text-sm font-mono text-slate-600">
-                      {cert.namespace}/{cert.secret_name}
+                      {cert.secret_name}
+                    </td>
+                    <td className="px-6 py-3 text-sm font-mono text-slate-600">
+                      {cert.namespace}
                     </td>
                     <td className="px-6 py-3 text-sm text-slate-600">
                       {cert.ingresses && cert.ingresses.length > 0 ? (
@@ -986,13 +994,25 @@ kubectl get cdxcert`}
               {/* Namespace */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Namespace</label>
-                <input
-                  type="text"
-                  value={deployNamespace}
-                  onChange={(e) => setDeployNamespace(e.target.value)}
-                  placeholder="default"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                />
+                {operator.available_namespaces && operator.available_namespaces.length > 0 ? (
+                  <select
+                    value={deployNamespace}
+                    onChange={(e) => setDeployNamespace(e.target.value)}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  >
+                    {operator.available_namespaces.map((ns) => (
+                      <option key={ns} value={ns}>{ns}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={deployNamespace}
+                    onChange={(e) => setDeployNamespace(e.target.value)}
+                    placeholder="default"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                )}
               </div>
 
               {/* Advanced: sync interval + include CA */}

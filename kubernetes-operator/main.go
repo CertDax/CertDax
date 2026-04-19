@@ -481,6 +481,24 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
+	// List available namespaces (exclude operator's own namespace and kube-system namespaces)
+	podNamespace := os.Getenv("POD_NAMESPACE")
+	excludeNs := map[string]bool{
+		"kube-system": true, "kube-public": true, "kube-node-lease": true,
+	}
+	if podNamespace != "" {
+		excludeNs[podNamespace] = true
+	}
+	var availableNamespaces []string
+	var nsList corev1.NamespaceList
+	if err := k8sClient.List(ctx, &nsList); err == nil {
+		for _, ns := range nsList.Items {
+			if !excludeNs[ns.Name] {
+				availableNamespaces = append(availableNamespaces, ns.Name)
+			}
+		}
+	}
+
 	return &certdax.HeartbeatPayload{
 		Namespace:           os.Getenv("POD_NAMESPACE"),
 		DeploymentName:      os.Getenv("DEPLOYMENT_NAME"),
@@ -496,6 +514,7 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 		PendingCertificates: pending,
 		FailedCertificates:  failed,
 		Certificates:        certs,
+		AvailableNamespaces: availableNamespaces,
 		LastError:           lastError,
 		RecentLogs:          logBuf.Lines(),
 	}

@@ -39,6 +39,7 @@ class K8sHeartbeat(BaseModel):
     last_error: str | None = None
     recent_logs: list[str] | None = None
     certificates: list[dict] | None = None
+    available_namespaces: list[str] | None = None
 
 
 def get_k8s_operator(
@@ -85,6 +86,9 @@ def heartbeat(
     import json as _json
     certs = data.certificates if data.certificates is not None else []
     operator.managed_certs_json = _json.dumps(certs)
+
+    if data.available_namespaces is not None:
+        operator.available_namespaces_json = _json.dumps(data.available_namespaces)
 
     # Auto-clear completed CR deletions: if a pending deletion's cert ID
     # is no longer reported in managed certs, it was processed.

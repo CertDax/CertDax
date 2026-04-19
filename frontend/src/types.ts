@@ -251,6 +251,7 @@ export interface K8sOperator {
   pending_certificates: number;
   failed_certificates: number;
   certificates: K8sManagedCert[];
+  available_namespaces: string[];
   status: string;
   last_seen: string | null;
   last_error: string | null;

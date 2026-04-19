@@ -274,6 +274,9 @@ def _migrate_db():
         if "pending_certificates" not in existing_cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN pending_certificates INTEGER DEFAULT 0"))
+        if "available_namespaces_json" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE k8s_operators ADD COLUMN available_namespaces_json TEXT"))
 
     # --- K8s deployments table ---
     if "k8s_deployments" not in existing_tables:
