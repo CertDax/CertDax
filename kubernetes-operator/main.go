@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -481,10 +482,11 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
-	// List available namespaces (exclude operator's own namespace and kube-system namespaces)
+	// List available namespaces (exclude system and infrastructure namespaces)
 	podNamespace := os.Getenv("POD_NAMESPACE")
 	excludeNs := map[string]bool{
 		"kube-system": true, "kube-public": true, "kube-node-lease": true,
+		"local-path-storage": true,
 	}
 	if podNamespace != "" {
 		excludeNs[podNamespace] = true
@@ -493,9 +495,15 @@ func buildHeartbeatPayload(k8sClient client.Client, watchNamespace string, cpuPe
 	var nsList corev1.NamespaceList
 	if err := k8sClient.List(ctx, &nsList); err == nil {
 		for _, ns := range nsList.Items {
-			if !excludeNs[ns.Name] {
-				availableNamespaces = append(availableNamespaces, ns.Name)
+			name := ns.Name
+			if excludeNs[name] {
+				continue
 			}
+			// Exclude CertDax-related namespaces
+			if strings.HasPrefix(name, "certdax") {
+				continue
+			}
+			availableNamespaces = append(availableNamespaces, name)
 		}
 	}
 
