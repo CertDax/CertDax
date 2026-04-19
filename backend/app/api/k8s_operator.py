@@ -82,9 +82,9 @@ def heartbeat(
     if data.recent_logs is not None:
         import json
         operator.recent_logs = json.dumps(data.recent_logs[-200:])
-    if data.certificates is not None:
-        import json as _json
-        operator.managed_certs_json = _json.dumps(data.certificates)
+    import json as _json
+    certs = data.certificates if data.certificates is not None else []
+    operator.managed_certs_json = _json.dumps(certs)
 
     # Auto-clear completed CR deletions: if a pending deletion's cert ID
     # is no longer reported in managed certs, it was processed.

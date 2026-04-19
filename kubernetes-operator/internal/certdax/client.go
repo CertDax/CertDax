@@ -120,7 +120,7 @@ type HeartbeatPayload struct {
 	ReadyCertificates   int           `json:"ready_certificates"`
 	PendingCertificates int           `json:"pending_certificates"`
 	FailedCertificates  int           `json:"failed_certificates"`
-	Certificates        []ManagedCert `json:"certificates,omitempty"`
+	Certificates        []ManagedCert `json:"certificates"`
 	LastError           string        `json:"last_error,omitempty"`
 	RecentLogs          []string      `json:"recent_logs,omitempty"`
 }
