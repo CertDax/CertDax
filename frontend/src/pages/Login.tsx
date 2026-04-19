@@ -6,6 +6,7 @@ import api from '../services/api';
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [checkingSetup, setCheckingSetup] = useState(true);
   const [isRegister, setIsRegister] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
@@ -34,7 +35,7 @@ export default function Login() {
         return;
       }
       setNeedsSetup(false);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setCheckingSetup(false));
 
     api.get('/oidc/config').then(({ data }) => {
       if (data?.enabled) setOidcConfig(data);
@@ -80,6 +81,8 @@ export default function Login() {
       setForgotLoading(false);
     }
   };
+
+  if (checkingSetup) return null;
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
