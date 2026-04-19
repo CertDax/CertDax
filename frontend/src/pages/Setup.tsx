@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, Mail, ChevronRight, ChevronLeft, Check, Rocket } from 'lucide-react';
+import { Lock, User, Mail, ChevronRight, ChevronLeft, Check, Rocket, Globe } from 'lucide-react';
 import api from '../services/api';
 
 type Step = 'welcome' | 'admin' | 'smtp' | 'complete';
@@ -31,6 +31,25 @@ export default function Setup() {
   const [defaultCas, setDefaultCas] = useState(true);
   const [acmeEmail, setAcmeEmail] = useState('');
 
+  // General settings
+  const [timezone, setTimezone] = useState('UTC');
+  const [timezones, setTimezones] = useState<string[]>([]);
+  const [tzFilter, setTzFilter] = useState('');
+  const [apiBaseUrl, setApiBaseUrl] = useState('');
+  const [apiBaseUrlFromEnv, setApiBaseUrlFromEnv] = useState(false);
+
+  useEffect(() => {
+    api.get('/settings/timezones').then(({ data }) => setTimezones(data)).catch(() => {});
+    api.get('/setup/status').then(({ data }) => {
+      setApiBaseUrlFromEnv(!!data.api_base_url_from_env);
+    }).catch(() => {});
+    // Try to detect browser timezone as default
+    try {
+      const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (browserTz) setTimezone(browserTz);
+    } catch {}
+  }, []);
+
   const steps: Step[] = ['welcome', 'admin', 'smtp', 'complete'];
   const stepIndex = steps.indexOf(step);
 
@@ -57,6 +76,8 @@ export default function Setup() {
 
       body.default_cas_enabled = defaultCas;
       if (acmeEmail) body.acme_contact_email = acmeEmail;
+      body.timezone = timezone;
+      if (!apiBaseUrlFromEnv && apiBaseUrl) body.api_base_url = apiBaseUrl;
 
       const { data } = await api.post('/setup/complete', body);
       localStorage.setItem('token', data.access_token);
@@ -134,6 +155,10 @@ export default function Setup() {
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-emerald-500 shrink-0" />
                   <span>Create an administrator account</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Globe className="w-5 h-5 text-emerald-500 shrink-0" />
+                  <span>Configure timezone and general settings</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Mail className="w-5 h-5 text-emerald-500 shrink-0" />
@@ -362,6 +387,53 @@ export default function Setup() {
                   </label>
                 </div>
               )}
+
+              {/* General Settings */}
+              <div className="mt-8 pt-6 border-t border-slate-200">
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">General Settings</h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <Globe className="w-4 h-4 inline mr-1 -mt-0.5" />
+                      Timezone
+                    </label>
+                    <input
+                      type="text"
+                      value={tzFilter}
+                      onChange={(e) => setTzFilter(e.target.value)}
+                      placeholder="Search timezone..."
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none mb-1"
+                    />
+                    <select
+                      value={timezone}
+                      onChange={(e) => { setTimezone(e.target.value); setTzFilter(''); }}
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    >
+                      {timezones
+                        .filter((tz) => !tzFilter || tz.toLowerCase().includes(tzFilter.toLowerCase()))
+                        .map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                    </select>
+                    <p className="text-xs text-slate-400 mt-1">Used for timestamps in notifications. Current: <strong>{timezone}</strong></p>
+                  </div>
+
+                  {!apiBaseUrlFromEnv && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        API Hostname
+                      </label>
+                      <input
+                        type="url"
+                        value={apiBaseUrl}
+                        onChange={(e) => setApiBaseUrl(e.target.value)}
+                        placeholder="https://certdax.example.com"
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Public URL agents use to reach CertDax. Leave empty to auto-detect.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Certificate Settings */}
               <div className="mt-8 pt-6 border-t border-slate-200">
