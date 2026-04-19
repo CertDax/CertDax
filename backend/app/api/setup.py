@@ -43,10 +43,14 @@ def setup_status(db: Session = Depends(get_db)):
     """Check if setup has been completed."""
     from app.config import settings as app_config
     has_users = db.query(User).first() is not None
-    return {
+    resp = {
         "needs_setup": not has_users,
         "api_base_url_from_env": bool(app_config.API_BASE_URL),
     }
+    if not has_users:
+        from zoneinfo import available_timezones
+        resp["timezones"] = sorted(available_timezones())
+    return resp
 
 
 @router.post("/complete")
