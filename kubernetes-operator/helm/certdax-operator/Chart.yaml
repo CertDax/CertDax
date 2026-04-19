@@ -2,7 +2,7 @@ apiVersion: v2
 name: certdax-operator
 description: CertDax Kubernetes Operator - Sync certificates from CertDax to Kubernetes TLS secrets
 type: application
-version: 0.3.5
+version: 0.3.6
 appVersion: "1.2.3"
 keywords:
   - certificates
