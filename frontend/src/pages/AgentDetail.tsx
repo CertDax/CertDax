@@ -74,6 +74,9 @@ export default function AgentDetailPage() {
   // Ghost copies of certs being deleted — keeps the row visible even after
   // the backend removes the AgentCertificate record from assigned_certificates.
   const [ghostCerts, setGhostCerts] = useState<Map<string, import('../types').AgentCertificate>>(new Map());
+  // Keys that have been confirmed removed by the agent — shown briefly with
+  // a "Removed" badge before the row disappears.
+  const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
 
   const fetchAgent = async () => {
     const { data } = await api.get(`/agents/${id}`);
@@ -106,16 +109,16 @@ export default function AgentDetailPage() {
     prevLogCountRef.current = newCount;
   }, [agent?.recent_logs, autoScroll]);
 
-  // Clear deleting state only when the backend confirms the pending_removal
-  // deployment is gone (i.e. the agent has actually processed and confirmed removal).
-  // For certs that were never deployed, there's no pending_removal record, so
-  // they clear as soon as the assignment disappears from assigned_certificates.
+  // When the backend confirms the agent has processed the removal (pending_removal
+  // is gone), transition from "deleting" to "removed" state so the user sees
+  // a brief confirmation before the row disappears.
   useEffect(() => {
     if (!agent || deletingKeys.size === 0) return;
     const assignedCertIds = new Set(agent.assigned_certificates.map((ac) => ac.certificate_id).filter(Boolean));
     const assignedSsIds = new Set(agent.assigned_certificates.map((ac) => ac.self_signed_certificate_id).filter(Boolean));
     const pendingCertIds = new Set(agent.pending_removal_cert_ids ?? []);
     const pendingSsIds = new Set(agent.pending_removal_ss_ids ?? []);
+    const newlyRemoved: string[] = [];
     setDeletingKeys((prev) => {
       let changed = false;
       const next = new Set(prev);
@@ -123,32 +126,54 @@ export default function AgentDetailPage() {
         const [type, rawId] = key.split(':');
         const numId = Number(rawId);
         if (type === 'cert') {
-          // Clear when: no longer assigned AND no longer pending_removal
           if (!assignedCertIds.has(numId) && !pendingCertIds.has(numId)) {
             next.delete(key); changed = true;
+            newlyRemoved.push(key);
           }
         } else if (type === 'ss') {
           if (!assignedSsIds.has(numId) && !pendingSsIds.has(numId)) {
             next.delete(key); changed = true;
+            newlyRemoved.push(key);
           }
         }
       }
       return changed ? next : prev;
     });
+    // Move newly confirmed removals into the "removed" set for brief display
+    if (newlyRemoved.length > 0) {
+      setRemovedKeys((prev) => {
+        const next = new Set(prev);
+        newlyRemoved.forEach((k) => next.add(k));
+        return next;
+      });
+      // Auto-clear "removed" badge after 5 seconds
+      setTimeout(() => {
+        setRemovedKeys((prev) => {
+          const next = new Set(prev);
+          newlyRemoved.forEach((k) => next.delete(k));
+          return next;
+        });
+        setGhostCerts((prev) => {
+          const next = new Map(prev);
+          newlyRemoved.forEach((k) => next.delete(k));
+          return next;
+        });
+      }, 5000);
+    }
   }, [agent?.assigned_certificates, agent?.pending_removal_cert_ids, agent?.pending_removal_ss_ids]);
 
-  // Sync ghostCerts to deletingKeys — drop ghosts once their key is cleared
+  // Sync ghostCerts to deletingKeys/removedKeys — drop ghosts once neither set holds the key
   useEffect(() => {
     if (ghostCerts.size === 0) return;
     setGhostCerts((prev) => {
       let changed = false;
       const next = new Map(prev);
       for (const key of [...next.keys()]) {
-        if (!deletingKeys.has(key)) { next.delete(key); changed = true; }
+        if (!deletingKeys.has(key) && !removedKeys.has(key)) { next.delete(key); changed = true; }
       }
       return changed ? next : prev;
     });
-  }, [deletingKeys]);
+  }, [deletingKeys, removedKeys]);
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -761,11 +786,13 @@ export default function AgentDetailPage() {
                           </td>
                           <td className="px-6 py-4">
                             <StatusBadge status={
-                              deletingKeys.has(`cert:${ac.certificate_id}`)
-                                ? 'deleting'
-                                : ac.deployment_status === 'deployed'
-                                  ? (ac.certificate_status || 'valid')
-                                  : (ac.deployment_status || 'pending')
+                              removedKeys.has(`cert:${ac.certificate_id}`)
+                                ? 'removed'
+                                : deletingKeys.has(`cert:${ac.certificate_id}`)
+                                  ? 'deleting'
+                                  : ac.deployment_status === 'deployed'
+                                    ? (ac.certificate_status || 'valid')
+                                    : (ac.deployment_status || 'pending')
                             } />
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
@@ -815,11 +842,13 @@ export default function AgentDetailPage() {
                           </td>
                           <td className="px-6 py-4">
                             <StatusBadge status={
-                              deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)
-                                ? 'deleting'
-                                : ac.deployment_status === 'deployed'
-                                  ? (ac.certificate_status || 'valid')
-                                  : (ac.deployment_status || 'pending')
+                              removedKeys.has(`ss:${ac.self_signed_certificate_id}`)
+                                ? 'removed'
+                                : deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)
+                                  ? 'deleting'
+                                  : ac.deployment_status === 'deployed'
+                                    ? (ac.certificate_status || 'valid')
+                                    : (ac.deployment_status || 'pending')
                             } />
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
