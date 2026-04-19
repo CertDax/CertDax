@@ -172,6 +172,15 @@ export default function AgentDetailPage() {
     fetchAgent();
   };
 
+  const handleRetry = async (assignmentId: number) => {
+    try {
+      await api.post(`/agents/${id}/certificates/${assignmentId}/retry`);
+      fetchAgent();
+    } catch {
+      alert('Error retrying deployment');
+    }
+  };
+
   const handleUnassign = async (assignmentId: number) => {
     if (!confirm('Detach certificate from this agent?')) return;
     // Find the cert being removed so we can key by cert ID (not assignment ID,
@@ -762,7 +771,12 @@ export default function AgentDetailPage() {
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`cert:${ac.certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
+                            {ac.deployment_status === 'failed' && (
+                              <button onClick={() => handleRetry(ac.id)} title="Retry deployment" className="text-amber-500 hover:text-amber-700 p-1"><RefreshCw className="w-4 h-4" /></button>
+                            )}
+                            <button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`cert:${ac.certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button>
+                          </td>
                         </tr>
                       ))}
                     </>
@@ -811,7 +825,12 @@ export default function AgentDetailPage() {
                           <td className="px-6 py-4 text-sm text-slate-500">{ac.expires_at ? format(new Date(ac.expires_at), 'd MMM yyyy') : '-'}</td>
                           <td className="px-6 py-4 text-sm">{ac.auto_deploy ? <span className="text-emerald-600 font-medium">On</span> : <span className="text-slate-400">Off</span>}</td>
                           <td className="px-6 py-4 text-sm text-slate-500 uppercase">{ac.deploy_format || 'crt'}</td>
-                          <td className="px-6 py-4 text-right"><button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button></td>
+                          <td className="px-6 py-4 text-right flex items-center justify-end gap-1">
+                            {ac.deployment_status === 'failed' && (
+                              <button onClick={() => handleRetry(ac.id)} title="Retry deployment" className="text-amber-500 hover:text-amber-700 p-1"><RefreshCw className="w-4 h-4" /></button>
+                            )}
+                            <button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button>
+                          </td>
                         </tr>
                       ))}
                     </>
