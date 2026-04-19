@@ -12,6 +12,7 @@ class AppSettings(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     default_cas_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     timezone: Mapped[str] = mapped_column(String(100), default="UTC")
+    api_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

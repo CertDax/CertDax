@@ -59,6 +59,7 @@ export default function Settings() {
   const [appSettingsSaving, setAppSettingsSaving] = useState(false);
   const [defaultCasEnabled, setDefaultCasEnabled] = useState(true);
   const [appTimezone, setAppTimezone] = useState('UTC');
+  const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [timezones, setTimezones] = useState<string[]>([]);
   const [tzFilter, setTzFilter] = useState('');
 
@@ -106,6 +107,7 @@ export default function Settings() {
         if (data) {
           setDefaultCasEnabled(data.default_cas_enabled);
           setAppTimezone(data.timezone || 'UTC');
+          setApiBaseUrl(data.api_base_url || '');
         }
       })
       .finally(() => setAppSettingsLoading(false));
@@ -216,7 +218,7 @@ export default function Settings() {
     setSuccess('');
     setAppSettingsSaving(true);
     try {
-      await api.put('/settings/app', { default_cas_enabled: defaultCasEnabled, timezone: appTimezone });
+      await api.put('/settings/app', { default_cas_enabled: defaultCasEnabled, timezone: appTimezone, api_base_url: apiBaseUrl });
       setSuccess('Application settings saved');
     } catch {
       setError('Error saving application settings');
@@ -778,6 +780,22 @@ export default function Settings() {
           </div>
 
           <div className="space-y-4">
+            <div className="p-4 bg-slate-50 rounded-lg">
+              <div className="mb-2">
+                <span className="text-sm font-medium text-slate-700">API Base URL</span>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Public URL used in agent install scripts. Leave empty to auto-detect from request headers.
+                </p>
+              </div>
+              <input
+                type="url"
+                placeholder="https://certdax.example.com"
+                value={apiBaseUrl}
+                onChange={(e) => setApiBaseUrl(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-300"
+              />
+            </div>
+
             <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
               <div>
                 <span className="text-sm font-medium text-slate-700">Default Certificate Authorities</span>

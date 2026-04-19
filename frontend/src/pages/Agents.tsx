@@ -46,7 +46,6 @@ export default function Agents() {
   const [copied, setCopied] = useState('');
   const [showSetup, setShowSetup] = useState(false);
   const [guideOs, setGuideOs] = useState<'linux' | 'windows'>('linux');
-  const [installShell, setInstallShell] = useState<'bash' | 'powershell'>('bash');
 
   // Windows agent state
   const [osType, setOsType] = useState<'linux' | 'windows'>('linux');
@@ -159,9 +158,6 @@ export default function Agents() {
   const getCurlCommand = () => {
     if (!showInstallModal) return '';
     const baseUrl = window.location.origin;
-    if (installShell === 'powershell') {
-      return `$headers = @{ Authorization = "Bearer ${showInstallModal.token}" }\nInvoke-WebRequest -Uri "${baseUrl}/api/agents/${showInstallModal.id}/install-script" -Headers $headers -OutFile certdax-install.sh\n# Copy to target server and run: sudo sh certdax-install.sh`;
-    }
     return `curl -fsSL -H "Authorization: Bearer ${showInstallModal.token}" ${baseUrl}/api/agents/${showInstallModal.id}/install-script | sudo sh`;
   };
 
@@ -1213,20 +1209,6 @@ Start-Service CertDaxAgent`}</pre>
                         <Terminal className="w-4 h-4 inline mr-1" />
                         Installation command
                       </label>
-                      <div className="flex rounded-md overflow-hidden border border-slate-300 text-xs">
-                        <button
-                          onClick={() => setInstallShell('bash')}
-                          className={`px-2.5 py-0.5 font-medium transition-colors ${installShell === 'bash' ? 'bg-blue-100 text-blue-800' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          Bash
-                        </button>
-                        <button
-                          onClick={() => setInstallShell('powershell')}
-                          className={`px-2.5 py-0.5 font-medium transition-colors border-l border-slate-300 ${installShell === 'powershell' ? 'bg-blue-100 text-blue-800' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
-                        >
-                          PowerShell
-                        </button>
-                      </div>
                     </div>
                     <div className="bg-slate-900 rounded-lg p-4 relative group">
                       <pre className="text-sm text-emerald-400 font-mono whitespace-pre-wrap break-all">
