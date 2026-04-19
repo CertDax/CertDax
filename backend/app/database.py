@@ -167,6 +167,11 @@ def _migrate_db():
                     conn.execute(text(
                         "ALTER TABLE agent_certificates ALTER COLUMN certificate_id DROP NOT NULL"
                     ))
+        if "pending_removal" not in existing_cols:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "ALTER TABLE agent_certificates ADD COLUMN pending_removal BOOLEAN DEFAULT FALSE NOT NULL"
+                ))
 
     if "certificate_deployments" in existing_tables:
         existing_cols = {c["name"] for c in inspector.get_columns("certificate_deployments")}

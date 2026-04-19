@@ -68,17 +68,14 @@ export default function AgentDetailPage() {
   const logContainerRef = useRef<HTMLDivElement>(null);
   const prevLogCountRef = useRef(0);
 
-  // Deleting state: keyed by "cert:ID" or "ss:ID" so we can match against
-  // the backend's pending_removal_cert_ids / pending_removal_ss_ids lists.
+  // Deleting state: keyed by "cert:ID" or "ss:ID" — used to disable the
+  // delete button immediately after the user clicks (before the next poll).
   const [deletingKeys, setDeletingKeys] = useState<Set<string>>(new Set());
-  // Timestamp when each key was added to deletingKeys — used to enforce a
-  // minimum display time so the "Deleting" badge doesn't flash away instantly.
-  const [deletingTimestamps, setDeletingTimestamps] = useState<Map<string, number>>(new Map());
-  // Ghost copies of certs being deleted — keeps the row visible even after
-  // the backend removes the AgentCertificate record from assigned_certificates.
+  // Ghost copies of certs that disappeared from assigned_certificates while
+  // we were tracking them — keeps the row visible with a "Removed" badge.
   const [ghostCerts, setGhostCerts] = useState<Map<string, import('../types').AgentCertificate>>(new Map());
-  // Keys that have been confirmed removed by the agent — shown briefly with
-  // a "Removed" badge before the row disappears.
+  // Keys that have been confirmed removed — shown briefly with a green
+  // "Removed" badge before the row disappears.
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
 
   const fetchAgent = async () => {
@@ -112,58 +109,40 @@ export default function AgentDetailPage() {
     prevLogCountRef.current = newCount;
   }, [agent?.recent_logs, autoScroll]);
 
-  // When the backend confirms the agent has processed the removal (pending_removal
-  // is gone), transition from "deleting" to "removed" state so the user sees
-  // a brief confirmation before the row disappears.
-  // Enforce a minimum 3s display time for "Deleting" so it doesn't flash away.
-  const MIN_DELETING_MS = 3000;
+  // When a cert we were tracking (in deletingKeys) disappears from
+  // assigned_certificates, the agent has confirmed removal.  Show a brief
+  // "Removed" badge via ghostCerts before the row vanishes.
   useEffect(() => {
     if (!agent || deletingKeys.size === 0) return;
-    const assignedCertIds = new Set(agent.assigned_certificates.map((ac) => ac.certificate_id).filter(Boolean));
-    const assignedSsIds = new Set(agent.assigned_certificates.map((ac) => ac.self_signed_certificate_id).filter(Boolean));
-    const pendingCertIds = new Set(agent.pending_removal_cert_ids ?? []);
-    const pendingSsIds = new Set(agent.pending_removal_ss_ids ?? []);
+    const assignedCertIds = new Set(
+      agent.assigned_certificates.map((ac) => ac.certificate_id).filter(Boolean),
+    );
+    const assignedSsIds = new Set(
+      agent.assigned_certificates.map((ac) => ac.self_signed_certificate_id).filter(Boolean),
+    );
     const newlyRemoved: string[] = [];
-    const retryLaterKeys: { key: string; waitMs: number }[] = [];
-    const now = Date.now();
     setDeletingKeys((prev) => {
       let changed = false;
       const next = new Set(prev);
       for (const key of next) {
         const [type, rawId] = key.split(':');
         const numId = Number(rawId);
-        let shouldClear = false;
-        if (type === 'cert') {
-          shouldClear = !assignedCertIds.has(numId) && !pendingCertIds.has(numId);
-        } else if (type === 'ss') {
-          shouldClear = !assignedSsIds.has(numId) && !pendingSsIds.has(numId);
-        }
-        if (shouldClear) {
-          const addedAt = deletingTimestamps.get(key) || 0;
-          const elapsed = now - addedAt;
-          if (elapsed >= MIN_DELETING_MS) {
-            next.delete(key); changed = true;
-            newlyRemoved.push(key);
-          } else {
-            retryLaterKeys.push({ key, waitMs: MIN_DELETING_MS - elapsed });
-          }
+        const gone =
+          type === 'cert' ? !assignedCertIds.has(numId) : !assignedSsIds.has(numId);
+        if (gone) {
+          next.delete(key);
+          changed = true;
+          newlyRemoved.push(key);
         }
       }
       return changed ? next : prev;
     });
-    // Move newly confirmed removals into the "removed" set for brief display
     if (newlyRemoved.length > 0) {
-      setDeletingTimestamps((prev) => {
-        const next = new Map(prev);
-        newlyRemoved.forEach((k) => next.delete(k));
-        return next;
-      });
       setRemovedKeys((prev) => {
         const next = new Set(prev);
         newlyRemoved.forEach((k) => next.add(k));
         return next;
       });
-      // Auto-clear "removed" badge after 5 seconds
       setTimeout(() => {
         setRemovedKeys((prev) => {
           const next = new Set(prev);
@@ -177,22 +156,19 @@ export default function AgentDetailPage() {
         });
       }, 5000);
     }
-    // Schedule retry for keys that haven't reached minimum display time
-    if (retryLaterKeys.length > 0) {
-      const maxWait = Math.max(...retryLaterKeys.map((r) => r.waitMs));
-      const timer = setTimeout(() => fetchAgent(), maxWait + 100);
-      return () => clearTimeout(timer);
-    }
-  }, [agent?.assigned_certificates, agent?.pending_removal_cert_ids, agent?.pending_removal_ss_ids]);
+  }, [agent?.assigned_certificates]);
 
-  // Sync ghostCerts to deletingKeys/removedKeys — drop ghosts once neither set holds the key
+  // Sync ghostCerts — drop ghosts once neither deletingKeys nor removedKeys holds the key
   useEffect(() => {
     if (ghostCerts.size === 0) return;
     setGhostCerts((prev) => {
       let changed = false;
       const next = new Map(prev);
       for (const key of [...next.keys()]) {
-        if (!deletingKeys.has(key) && !removedKeys.has(key)) { next.delete(key); changed = true; }
+        if (!deletingKeys.has(key) && !removedKeys.has(key)) {
+          next.delete(key);
+          changed = true;
+        }
       }
       return changed ? next : prev;
     });
@@ -241,18 +217,17 @@ export default function AgentDetailPage() {
         : null;
     if (key && ac) {
       setDeletingKeys((prev) => new Set(prev).add(key));
-      setDeletingTimestamps((prev) => new Map(prev).set(key, Date.now()));
       setGhostCerts((prev) => new Map(prev).set(key, ac));
     }
     try {
       await api.delete(`/agents/${id}/certificates/${assignmentId}`);
-      // "Deleting" stays until the backend reports pending_removal is gone
-      // (i.e. the agent has confirmed removal via the status callback).
+      // For deployed certs the backend keeps the AgentCertificate with
+      // deployment_status="pending_removal" until the agent confirms.
+      // For never-deployed certs the AC is deleted immediately.
     } catch (err) {
       alert('Error detaching certificate');
       if (key) {
         setDeletingKeys((prev) => { const next = new Set(prev); next.delete(key); return next; });
-        setDeletingTimestamps((prev) => { const next = new Map(prev); next.delete(key); return next; });
         setGhostCerts((prev) => { const next = new Map(prev); next.delete(key); return next; });
       }
     }
@@ -813,8 +788,8 @@ export default function AgentDetailPage() {
                             <StatusBadge status={
                               removedKeys.has(`cert:${ac.certificate_id}`)
                                 ? 'removed'
-                                : deletingKeys.has(`cert:${ac.certificate_id}`)
-                                  ? 'deleting'
+                                : deletingKeys.has(`cert:${ac.certificate_id}`) && ac.deployment_status !== 'pending_removal'
+                                  ? 'pending_removal'
                                   : ac.deployment_status === 'deployed'
                                     ? (ac.certificate_status || 'valid')
                                     : (ac.deployment_status || 'pending')
@@ -827,7 +802,7 @@ export default function AgentDetailPage() {
                             {ac.deployment_status === 'failed' && (
                               <button onClick={() => handleRetry(ac.id)} title="Retry deployment" className="text-amber-500 hover:text-amber-700 p-1"><RefreshCw className="w-4 h-4" /></button>
                             )}
-                            <button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`cert:${ac.certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`cert:${ac.certificate_id}`) || ac.deployment_status === 'pending_removal'} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button>
                           </td>
                         </tr>
                       ))}
@@ -869,8 +844,8 @@ export default function AgentDetailPage() {
                             <StatusBadge status={
                               removedKeys.has(`ss:${ac.self_signed_certificate_id}`)
                                 ? 'removed'
-                                : deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)
-                                  ? 'deleting'
+                                : deletingKeys.has(`ss:${ac.self_signed_certificate_id}`) && ac.deployment_status !== 'pending_removal'
+                                  ? 'pending_removal'
                                   : ac.deployment_status === 'deployed'
                                     ? (ac.certificate_status || 'valid')
                                     : (ac.deployment_status || 'pending')
@@ -883,7 +858,7 @@ export default function AgentDetailPage() {
                             {ac.deployment_status === 'failed' && (
                               <button onClick={() => handleRetry(ac.id)} title="Retry deployment" className="text-amber-500 hover:text-amber-700 p-1"><RefreshCw className="w-4 h-4" /></button>
                             )}
-                            <button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`ss:${ac.self_signed_certificate_id}`)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => handleUnassign(ac.id)} disabled={deletingKeys.has(`ss:${ac.self_signed_certificate_id}`) || ac.deployment_status === 'pending_removal'} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 className="w-4 h-4" /></button>
                           </td>
                         </tr>
                       ))}

@@ -548,14 +548,22 @@ def unassign_certificate(
         ss_cert = db.query(SelfSignedCertificate).filter(SelfSignedCertificate.id == ac.self_signed_certificate_id).first()
         cn = ss_cert.common_name if ss_cert else None
 
+    has_deployed = False
     for dep in active_deployments:
         if dep.status == "deployed":
             dep.common_name = cn
             dep.status = "pending_removal"
+            has_deployed = True
         else:
             db.delete(dep)
 
-    db.delete(ac)
+    if has_deployed:
+        # Keep the AgentCertificate alive so the frontend can track removal.
+        # It will be deleted when the agent reports "removed" for the last
+        # pending_removal deployment.
+        ac.pending_removal = True
+    else:
+        db.delete(ac)
     db.commit()
     return {"detail": "Certificate unassigned"}
 

@@ -65,6 +65,7 @@ class AgentCertificate(Base):
     )
     auto_deploy: Mapped[bool] = mapped_column(default=True)
     deploy_format: Mapped[str] = mapped_column(String(10), default="crt")
+    pending_removal: Mapped[bool] = mapped_column(default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

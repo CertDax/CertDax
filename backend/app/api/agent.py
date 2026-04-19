@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_agent_target
 from app.database import get_db
 from app.models.certificate import Certificate
-from app.models.deployment import CertificateDeployment, DeploymentTarget
+from app.models.deployment import AgentCertificate, CertificateDeployment, DeploymentTarget
 from app.models.selfsigned import SelfSignedCertificate
 from app.schemas.deployment import (
     AgentDeploymentStatus,
@@ -283,6 +283,21 @@ def agent_report_status(
         deployment.status = "failed"
         deployment.error_message = req.error_message
     elif req.status == "removed":
+        # Delete the AgentCertificate that was kept alive while the agent
+        # processed the removal.  Match on target + cert id + pending_removal.
+        ac_filters = [
+            AgentCertificate.target_id == deployment.target_id,
+            AgentCertificate.pending_removal.is_(True),
+        ]
+        if deployment.certificate_id:
+            ac_filters.append(AgentCertificate.certificate_id == deployment.certificate_id)
+        elif deployment.self_signed_certificate_id:
+            ac_filters.append(
+                AgentCertificate.self_signed_certificate_id == deployment.self_signed_certificate_id
+            )
+        ac = db.query(AgentCertificate).filter(*ac_filters).first()
+        if ac:
+            db.delete(ac)
         db.delete(deployment)
         db.commit()
         return {"status": "ok"}
