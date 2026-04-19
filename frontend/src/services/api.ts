@@ -17,7 +17,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       const url = error.config?.url || '';
-      if (!url.startsWith('/auth/')) {
+      if (!url.startsWith('/auth/') && !url.startsWith('/setup/')) {
         localStorage.removeItem('token');
         window.location.href = '/login';
       }

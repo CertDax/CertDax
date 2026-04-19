@@ -39,9 +39,9 @@ export default function Setup() {
   const [apiBaseUrlFromEnv, setApiBaseUrlFromEnv] = useState(false);
 
   useEffect(() => {
-    api.get('/settings/timezones').then(({ data }) => setTimezones(data)).catch(() => {});
     api.get('/setup/status').then(({ data }) => {
       setApiBaseUrlFromEnv(!!data.api_base_url_from_env);
+      if (data.timezones) setTimezones(data.timezones);
     }).catch(() => {});
     // Try to detect browser timezone as default
     try {
