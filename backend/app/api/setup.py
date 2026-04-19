@@ -34,13 +34,19 @@ class SetupRequest(BaseModel):
     smtp: SetupSmtpRequest | None = None
     default_cas_enabled: bool = True
     acme_contact_email: str | None = None
+    timezone: str = "UTC"
+    api_base_url: str | None = None
 
 
 @router.get("/status")
 def setup_status(db: Session = Depends(get_db)):
     """Check if setup has been completed."""
+    from app.config import settings as app_config
     has_users = db.query(User).first() is not None
-    return {"needs_setup": not has_users}
+    return {
+        "needs_setup": not has_users,
+        "api_base_url_from_env": bool(app_config.API_BASE_URL),
+    }
 
 
 @router.post("/complete")
@@ -91,6 +97,20 @@ def complete_setup(req: SetupRequest, db: Session = Depends(get_db)):
         app_settings = AppSettings()
         db.add(app_settings)
     app_settings.default_cas_enabled = req.default_cas_enabled
+
+    # Timezone
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo(req.timezone)
+        app_settings.timezone = req.timezone
+    except (KeyError, Exception):
+        raise HTTPException(status_code=400, detail=f"Invalid timezone: {req.timezone}")
+
+    # API base URL (only save if not already set via .env)
+    from app.config import settings as app_config
+    if req.api_base_url is not None and not app_config.API_BASE_URL:
+        url = req.api_base_url.strip().rstrip("/")
+        app_settings.api_base_url = url or None
 
     # If default CAs disabled, deactivate them
     if not req.default_cas_enabled:

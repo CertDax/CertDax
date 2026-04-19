@@ -680,8 +680,11 @@ func (a *Agent) undeployCertificate(deploymentID int) {
 		}
 	}
 
-	a.reportStatus(deploymentID, "removed", "")
 	log.Printf("[INFO] Removal %d: certificate successfully REMOVED: %s", deploymentID, info.CommonName)
+	// Flush logs before reporting "removed" so the UI shows removal activity
+	// before the deployment record disappears.
+	a.heartbeat()
+	a.reportStatus(deploymentID, "removed", "")
 }
 
 // Run starts the agent with OS signal handling (interactive / console mode).
