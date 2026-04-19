@@ -228,9 +228,9 @@ export default function AgentDetailPage() {
     try {
       await api.put(`/agents/${id}`, {
         deploy_path: editDeployPath,
-        reload_command: editReloadCommand || null,
-        pre_deploy_script: editPreDeployScript || null,
-        post_deploy_script: editPostDeployScript || null,
+        reload_command: editReloadCommand,
+        pre_deploy_script: editPreDeployScript,
+        post_deploy_script: editPostDeployScript,
       });
       await fetchAgent();
       setEditingSettings(false);
