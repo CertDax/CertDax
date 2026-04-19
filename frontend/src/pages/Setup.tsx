@@ -112,7 +112,7 @@ export default function Setup() {
         {/* Progress bar */}
         {step !== 'complete' && (
           <div className="flex items-center justify-center gap-2 mb-8">
-            {['Welcome', 'Account', 'Email', 'Done'].map((label, i) => (
+            {['Welcome', 'Account', 'Settings', 'Done'].map((label, i) => (
               <div key={label} className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                   i < stepIndex ? 'bg-emerald-500 text-white' :
@@ -268,12 +268,61 @@ export default function Setup() {
           {step === 'smtp' && (
             <>
               <h2 className="text-xl font-semibold text-slate-900 mb-1">
-                Email Server
+                Additional Settings
               </h2>
               <p className="text-sm text-slate-500 mb-6">
-                Configure an SMTP server to receive email notifications.
-                You can also set this up later.
+                Configure your timezone, email server, and certificate authorities.
+                You can also change these later in the settings page.
               </p>
+
+              {/* General Settings */}
+              <h3 className="text-sm font-semibold text-slate-700 mb-4">General Settings</h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    <Globe className="w-4 h-4 inline mr-1 -mt-0.5" />
+                    Timezone
+                  </label>
+                  <input
+                    type="text"
+                    value={tzFilter}
+                    onChange={(e) => setTzFilter(e.target.value)}
+                    placeholder="Search timezone..."
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none mb-1"
+                  />
+                  <select
+                    value={timezone}
+                    onChange={(e) => { setTimezone(e.target.value); setTzFilter(''); }}
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  >
+                    {timezones
+                      .filter((tz) => !tzFilter || tz.toLowerCase().includes(tzFilter.toLowerCase()))
+                      .map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1">Used for timestamps in notifications. Current: <strong>{timezone}</strong></p>
+                </div>
+
+                {!apiBaseUrlFromEnv && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      API Hostname
+                    </label>
+                    <input
+                      type="url"
+                      value={apiBaseUrl}
+                      onChange={(e) => setApiBaseUrl(e.target.value)}
+                      placeholder="https://certdax.example.com"
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Public URL agents use to reach CertDax. Leave empty to auto-detect.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Email Server */}
+              <div className="mt-8 pt-6 border-t border-slate-200">
+                <h3 className="text-sm font-semibold text-slate-700 mb-4">Email Server</h3>
 
               <div className="mb-6">
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -387,52 +436,6 @@ export default function Setup() {
                   </label>
                 </div>
               )}
-
-              {/* General Settings */}
-              <div className="mt-8 pt-6 border-t border-slate-200">
-                <h3 className="text-sm font-semibold text-slate-700 mb-4">General Settings</h3>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      <Globe className="w-4 h-4 inline mr-1 -mt-0.5" />
-                      Timezone
-                    </label>
-                    <input
-                      type="text"
-                      value={tzFilter}
-                      onChange={(e) => setTzFilter(e.target.value)}
-                      placeholder="Search timezone..."
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none mb-1"
-                    />
-                    <select
-                      value={timezone}
-                      onChange={(e) => { setTimezone(e.target.value); setTzFilter(''); }}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                    >
-                      {timezones
-                        .filter((tz) => !tzFilter || tz.toLowerCase().includes(tzFilter.toLowerCase()))
-                        .map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-                    </select>
-                    <p className="text-xs text-slate-400 mt-1">Used for timestamps in notifications. Current: <strong>{timezone}</strong></p>
-                  </div>
-
-                  {!apiBaseUrlFromEnv && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        API Hostname
-                      </label>
-                      <input
-                        type="url"
-                        value={apiBaseUrl}
-                        onChange={(e) => setApiBaseUrl(e.target.value)}
-                        placeholder="https://certdax.example.com"
-                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-                      />
-                      <p className="text-xs text-slate-400 mt-1">Public URL agents use to reach CertDax. Leave empty to auto-detect.</p>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Certificate Settings */}
