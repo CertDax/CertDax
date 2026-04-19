@@ -319,11 +319,11 @@ def update_agent(
     if req.deploy_path is not None:
         target.deploy_path = req.deploy_path
     if req.reload_command is not None:
-        target.reload_command = req.reload_command
+        target.reload_command = req.reload_command or None
     if req.pre_deploy_script is not None:
-        target.pre_deploy_script = req.pre_deploy_script
+        target.pre_deploy_script = req.pre_deploy_script or None
     if req.post_deploy_script is not None:
-        target.post_deploy_script = req.post_deploy_script
+        target.post_deploy_script = req.post_deploy_script or None
 
     db.commit()
     db.refresh(target)
