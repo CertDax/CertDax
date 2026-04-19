@@ -3,7 +3,13 @@ FROM node:24-alpine AS build
 WORKDIR /app
 
 COPY package.json ./
-RUN npm install --no-audit && npm install @rollup/rollup-linux-x64-musl
+RUN npm install --no-audit && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        npm install @rollup/rollup-linux-x64-musl; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        npm install @rollup/rollup-linux-arm64-musl; \
+    fi
 
 COPY . .
 RUN npm run build
