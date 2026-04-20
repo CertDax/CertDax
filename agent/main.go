@@ -149,8 +149,10 @@ type CertificateData struct {
 
 // Agent is the main deploy agent.
 type Agent struct {
-	config Config
-	client *http.Client
+	config           Config
+	client           *http.Client
+	networkDown      bool
+	networkDownSince time.Time
 }
 
 // NewAgent creates a new Agent instance.
@@ -158,6 +160,26 @@ func NewAgent(cfg Config) *Agent {
 	return &Agent{
 		config: cfg,
 		client: &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// setNetworkDown marks the network as unavailable. On the first failure it logs
+// a single warning; subsequent failures are silently suppressed.
+func (a *Agent) setNetworkDown(err error) {
+	if !a.networkDown {
+		a.networkDown = true
+		a.networkDownSince = time.Now()
+		log.Printf("[WARN] Network connectivity lost: %v", err)
+	}
+}
+
+// setNetworkUp marks the network as available again and logs the recovery with
+// the total downtime duration.
+func (a *Agent) setNetworkUp() {
+	if a.networkDown {
+		downtime := time.Since(a.networkDownSince).Round(time.Second)
+		log.Printf("[INFO] Network connectivity restored (was offline for %s)", downtime)
+		a.networkDown = false
 	}
 }
 
@@ -196,10 +218,12 @@ func (a *Agent) heartbeat() {
 
 	resp, err := a.apiRequest("POST", "/api/agent/heartbeat", payload)
 	if err != nil {
-		log.Printf("[WARN] Heartbeat failed: %v", err)
+		a.setNetworkDown(err)
 		return
 	}
 	defer resp.Body.Close()
+
+	a.setNetworkUp()
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("[WARN] Heartbeat returned status %d", resp.StatusCode)
@@ -209,10 +233,12 @@ func (a *Agent) heartbeat() {
 func (a *Agent) poll() []Deployment {
 	resp, err := a.apiRequest("GET", "/api/agent/poll", nil)
 	if err != nil {
-		log.Printf("[WARN] Poll failed: %v", err)
+		a.setNetworkDown(err)
 		return nil
 	}
 	defer resp.Body.Close()
+
+	a.setNetworkUp()
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("[WARN] Poll returned status %d", resp.StatusCode)
